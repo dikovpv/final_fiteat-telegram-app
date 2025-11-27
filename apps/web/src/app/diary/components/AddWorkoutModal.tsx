@@ -27,6 +27,9 @@ export interface WorkoutData {
   duration?: number;
   type?: "strength" | "cardio" | "flexibility";
   calories?: number;
+  planSlug?: string;
+  planTitle?: string;
+  exerciseSlug?: string;
 }
 
 interface AddWorkoutModalProps {
@@ -79,7 +82,12 @@ export default function AddWorkoutModal({
     () =>
       hasReadyWorkouts
         ? availableWorkouts.filter((workout) => {
-            const matchesSearch = (workout.name || "")
+            const matchesSearch = [
+              workout.name || "",
+              workout.planTitle || "",
+            ]
+              .join(" ")
+
               .toLowerCase()
               .includes(searchQuery.toLowerCase());
             const matchesType =
@@ -522,6 +530,12 @@ function WorkoutItem({
             <span className="text-lg">{getTypeIcon(workout.type)}</span>
             <p className="font-semibold text-white">{workout.name}</p>
           </div>
+
+          {workout.planTitle && (
+            <p className="text-[11px] text-gray-500 mb-1">
+              План: {workout.planTitle}
+            </p>
+          )}
 
           <div className="flex items-center gap-3 text-xs text-gray-400">
             {workout.type && (
