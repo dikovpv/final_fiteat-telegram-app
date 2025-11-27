@@ -87,6 +87,7 @@ export default function AddWorkoutModal({
               workout.planTitle || "",
             ]
               .join(" ")
+
               .toLowerCase()
               .includes(searchQuery.toLowerCase());
             const matchesType =
