@@ -1,0 +1,87 @@
+
+> @fit-eat/web@0.3.0 dev /home/dikov/PROJECTS/FitEat_v0.3_Summary_Targets/apps/web
+> next dev -p 3000
+
+  [1m[38;2;173;127;168m▲ Next.js 15.0.1[39m[22m
+  - Local:        http://localhost:3000
+
+ [32m[1m✓[22m[39m Starting...
+ [32m[1m✓[22m[39m Ready in 6.4s
+ [37m[1m○[22m[39m Compiling / ...
+ [32m[1m✓[22m[39m Compiled / in 9.3s (1456 modules)
+ GET / [32m200[39m in 3352ms
+ GET / [32m200[39m in 10959ms
+ [32m[1m✓[22m[39m Compiled in 1770ms (723 modules)
+ [32m[1m✓[22m[39m Compiled in 429ms (709 modules)
+ [37m[1m○[22m[39m Compiling /manifest.json ...
+ [32m[1m✓[22m[39m Compiled /manifest.json in 1620ms (774 modules)
+ GET /manifest.json [32m200[39m in 1783ms
+ [37m[1m○[22m[39m Compiling /_not-found ...
+ [32m[1m✓[22m[39m Compiled /_not-found in 1781ms (1486 modules)
+ GET /icon-192x192.png [33m404[39m in 2126ms
+ GET /luxury-test [33m404[39m in 71ms
+ GET /manifest.json [32m200[39m in 93ms
+ GET /manifest.json [32m200[39m in 17ms
+ GET /icon-192x192.png [33m404[39m in 73ms
+ [37m[1m○[22m[39m Compiling /meals ...
+ [32m[1m✓[22m[39m Compiled /meals in 1975ms (1506 modules)
+ GET /meals [32m200[39m in 2114ms
+ GET /manifest.json [32m200[39m in 56ms
+ GET /icon-192x192.png [33m404[39m in 176ms
+ [37m[1m○[22m[39m Compiling /pro ...
+ [32m[1m✓[22m[39m Compiled /pro in 1174ms (1522 modules)
+ GET /pro [32m200[39m in 1314ms
+ GET /manifest.json [32m200[39m in 32ms
+ GET /icon-192x192.png [33m404[39m in 142ms
+ GET /meals [32m200[39m in 61ms
+ GET /manifest.json [32m200[39m in 30ms
+ GET /icon-192x192.png [33m404[39m in 72ms
+ [37m[1m○[22m[39m Compiling /workouts ...
+ [32m[1m✓[22m[39m Compiled /workouts in 1223ms (1536 modules)
+ GET /workouts [32m200[39m in 1347ms
+ GET /manifest.json [32m200[39m in 37ms
+ GET /icon-192x192.png [33m404[39m in 76ms
+ [37m[1m○[22m[39m Compiling /diary ...
+ [32m[1m✓[22m[39m Compiled /diary in 1535ms (1592 modules)
+ GET /diary [32m200[39m in 1638ms
+ GET /manifest.json [32m200[39m in 17ms
+ GET /icon-192x192.png [33m404[39m in 64ms
+ [37m[1m○[22m[39m Compiling /tips ...
+ [32m[1m✓[22m[39m Compiled /tips in 1142ms (1602 modules)
+ GET /tips [32m200[39m in 1230ms
+ GET /manifest.json [32m200[39m in 18ms
+ GET /icon-192x192.png [33m404[39m in 62ms
+ GET /meals [32m200[39m in 42ms
+ GET /manifest.json [32m200[39m in 17ms
+ GET /icon-192x192.png [33m404[39m in 45ms
+ GET /diary [32m200[39m in 58ms
+ GET /manifest.json [32m200[39m in 18ms
+ GET /icon-192x192.png [33m404[39m in 58ms
+ [32m[1m✓[22m[39m Compiled in 2.5s (1557 modules)
+ GET /diary [32m200[39m in 393ms
+ [37m[1m○[22m[39m Compiling /_not-found ...
+ [32m[1m✓[22m[39m Compiled /manifest.json in 984ms (1546 modules)
+ [32m[1m✓[22m[39m Compiled (1587 modules)
+ GET /manifest.json [32m200[39m in 806ms
+ GET /luxury-test [33m404[39m in 1742ms
+ GET /luxury-test [33m404[39m in 211ms
+ GET /icon-192x192.png [33m404[39m in 43ms
+ GET /manifest.json [32m200[39m in 32ms
+ GET /manifest.json [32m200[39m in 16ms
+ GET /icon-192x192.png [33m404[39m in 51ms
+ GET /manifest.json [32m200[39m in 24ms
+ GET /icon-192x192.png [33m404[39m in 59ms
+ [32m[1m✓[22m[39m Compiled in 1525ms (1601 modules)
+ GET /luxury-test [33m404[39m in 181ms
+ GET /diary [32m200[39m in 293ms
+ GET /luxury-test [33m404[39m in 125ms
+ GET /manifest.json [32m200[39m in 85ms
+ GET /manifest.json [32m200[39m in 79ms
+ GET /icon-192x192.png [33m404[39m in 59ms
+ GET /manifest.json [32m200[39m in 11ms
+ GET /icon-192x192.png [33m404[39m in 64ms
+ GET /manifest.json [32m200[39m in 10ms
+ GET /icon-192x192.png [33m404[39m in 56ms
+ GET /diary [32m200[39m in 173ms
+ GET /manifest.json [32m200[39m in 16ms
+ GET /icon-192x192.png [33m404[39m in 60ms

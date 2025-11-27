@@ -1,0 +1,68 @@
+{
+  "name": "AVYRA FitEat - Космический фитнес-помощник",
+  "short_name": "FitEat",
+  "description": "Персональный тренер по питанию и тренировкам в Telegram",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0f",
+  "theme_color": "#00d4aa",
+  "orientation": "portrait-primary",
+  "categories": ["health", "fitness", "lifestyle"],
+  "lang": "ru-RU",
+  "icons": [
+    {
+      "src": "/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Добавить прием пищи",
+      "short_name": "Питание",
+      "description": "Быстро добавить запись о питании",
+      "url": "/meals",
+      "icons": [
+        {
+          "src": "/nutrition-icon.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Начать тренировку",
+      "short_name": "Тренировка",
+      "description": "Начать новую тренировку",
+      "url": "/workouts",
+      "icons": [
+        {
+          "src": "/workout-icon.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "https://fiteat.app/manifest.json"
+    }
+  ]
+}

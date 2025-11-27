@@ -1,0 +1,36 @@
+{
+  "name": "fit-eat",
+  "private": true,
+  "packageManager": "pnpm@9.12.0",
+  "version": "0.3.0",
+  "dependencies": {
+    "@fit-eat/db": "workspace:*",
+    "@tanstack/react-query": "^5.56.2",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.451.0",
+    "next": "15.0.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "prisma": {
+  "schema": "packages/db/prisma/schema.prisma"
+},
+  "scripts": {
+    "dev": "docker compose up -d && turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down -v",
+    "prisma:generate": "pnpm -C packages/db prisma generate",
+    "prisma:migrate": "pnpm -C packages/db prisma migrate dev",
+    "seed": "pnpm -C packages/db ts-node prisma/seed.ts"
+  },
+  "devDependencies": {
+    "prisma": "^5.20.0",
+    "turbo": "^2.0.4"
+  },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}

@@ -1,0 +1,51 @@
+// env = "../../.env"
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  telegramId   String   @unique
+  name         String?
+  firstName    String 
+  username     String?
+  age          Int?
+  gender       String?
+  heightCm     Int?
+  weightKg     Float?
+  goal         String?
+  activity     String?
+  preferences  String?
+  createdAt    DateTime @default(now())
+
+  meals        Meal[]
+  workouts     Workout[]
+}
+
+model Meal {
+  id         String   @id @default(cuid())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  name       String
+  calories   Int
+  protein    Float
+  fat        Float
+  carbs      Float
+  createdAt  DateTime @default(now())
+}
+
+model Workout {
+  id         String   @id @default(cuid())
+  user       User     @relation(fields: [userId], references: [id])
+  userId     String
+  type       String
+  duration   Int?
+  calories   Int?
+  createdAt  DateTime @default(now())
+}
