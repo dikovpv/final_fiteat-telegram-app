@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Heart, Trash2, Plus, Search } from "lucide-react";
+import { meals as BASE_MEALS, computeMealNutrition } from "../../meals/meals-data";
 import { MealData } from "../../../types/meal";
 import {
   DEFAULT_ENTRY,
@@ -24,7 +25,39 @@ export default function AddMealModal({
   onSave,
   readyMeals = [],
 }: AddMealModalProps) {
-  const [availableMeals, setAvailableMeals] = useState<MealData[]>(readyMeals);
+
+  const baseMeals = useMemo<MealData[]>(
+    () =>
+      BASE_MEALS.map((recipe) => {
+        const nutrition = computeMealNutrition(recipe);
+
+        return {
+          id: recipe.slug,
+          title: recipe.title,
+          calories: Math.round(nutrition.perPortionCalories),
+          protein: Math.round(nutrition.perPortionProtein),
+          fat: Math.round(nutrition.perPortionFat),
+          carbs: Math.round(nutrition.perPortionCarbs),
+          type: recipe.mealType,
+          category: recipe.mealType,
+        };
+      }),
+    []
+  );
+
+  const mergeMeals = (...lists: MealData[][]) => {
+    const map = new Map<string, MealData>();
+
+    lists.flat().forEach((meal) => {
+      const id = (meal as any)?.id || (meal as any)?.slug || meal.title;
+      if (id) map.set(id, meal);
+    });
+
+    return Array.from(map.values());
+  };
+
+  const [availableMeals, setAvailableMeals] = useState<MealData[]>([]);
+
 
   const hasReadyMeals = availableMeals.length > 0;
 
@@ -107,23 +140,17 @@ export default function AddMealModal({
       const parsed: DiaryEntry = { ...DEFAULT_ENTRY, ...JSON.parse(saved) };
       const meals = Array.isArray(parsed.meals) ? parsed.meals : [];
 
-      setAvailableMeals((prev) => {
-        const map = new Map<string, MealData>();
-        [...prev, ...meals].forEach((meal) => {
-          const id = meal.id || meal.title;
-          if (id) map.set(id, meal);
-        });
-        return Array.from(map.values());
-      });
+      setAvailableMeals((prev) => mergeMeals(baseMeals, readyMeals, prev, meals));
     } catch {
       // игнорируем, чтобы не ломать модалку при проблемах с localStorage
     }
-  }, []);
+  }, [baseMeals, readyMeals]);
 
   // Следим за внешними изменениями, чтобы подхватывать актуальные блюда
   useEffect(() => {
-    setAvailableMeals(readyMeals);
-  }, [readyMeals]);
+    setAvailableMeals((prev) => mergeMeals(baseMeals, readyMeals, prev));
+  }, [baseMeals, readyMeals]);
+
 
   // Если после загрузки появились готовые блюда — переключаем вкладку
   useEffect(() => {

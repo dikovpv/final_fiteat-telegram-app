@@ -17,6 +17,8 @@ import {
   type DiaryEntry,
   type DiaryWorkout,
 } from "../diary-types";
+import { WORKOUT_TEMPLATES } from "../../workouts/workouts-data";
+
 
 export interface WorkoutData {
   id?: string;
@@ -45,9 +47,37 @@ export default function AddWorkoutModal({
   onSave,
   readyWorkouts = [],
 }: AddWorkoutModalProps) {
-  const [availableWorkouts, setAvailableWorkouts] = useState<WorkoutData[]>(
-    readyWorkouts
+  
+  const baseWorkouts = useMemo<WorkoutData[]>(
+    () =>
+      WORKOUT_TEMPLATES.flatMap((plan) =>
+        plan.exercises.map((exercise) => ({
+          id: exercise.id || exercise.slug,
+          name: exercise.name,
+          sets: exercise.sets,
+          reps: exercise.reps,
+          type: exercise.type,
+          planSlug: plan.slug,
+          exerciseSlug: exercise.slug,
+          planTitle: plan.title,
+        }))
+      ),
+    []
   );
+
+  const mergeWorkouts = (...lists: WorkoutData[][]) => {
+    const map = new Map<string, WorkoutData>();
+
+    lists.flat().forEach((workout) => {
+      const id = workout?.id || workout?.exerciseSlug || workout?.name;
+      if (id) map.set(id, workout);
+    });
+
+    return Array.from(map.values());
+  };
+
+  const [availableWorkouts, setAvailableWorkouts] = useState<WorkoutData[]>([]);
+
   const hasReadyWorkouts = availableWorkouts.length > 0;
 
   const [tab, setTab] = useState<"ready" | "added" | "manual">(
@@ -125,22 +155,20 @@ export default function AddWorkoutModal({
         ? parsed.workouts
         : [];
 
-      setAvailableWorkouts((prev) => {
-        const map = new Map<string, WorkoutData>();
-        [...prev, ...workouts].forEach((workout) => {
-          const id = workout.id || workout.name;
-          if (id) map.set(id, workout);
-        });
-        return Array.from(map.values());
-      });
+      setAvailableWorkouts((prev) =>
+        mergeWorkouts(baseWorkouts, readyWorkouts, prev, workouts)
+      );
     } catch {
       // просто пропускаем ошибку
     }
-  }, []);
+  }, [baseWorkouts, readyWorkouts]);
 
   useEffect(() => {
-    setAvailableWorkouts(readyWorkouts);
-  }, [readyWorkouts]);
+    setAvailableWorkouts((prev) =>
+      mergeWorkouts(baseWorkouts, readyWorkouts, prev)
+    );
+  }, [baseWorkouts, readyWorkouts]);
+
 
   useEffect(() => {
     if (hasReadyWorkouts && tab !== "ready") {
