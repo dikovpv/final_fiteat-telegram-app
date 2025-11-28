@@ -25,6 +25,7 @@ export default function AddMealModal({
   onSave,
   readyMeals = [],
 }: AddMealModalProps) {
+
   const baseMeals = useMemo<MealData[]>(
     () =>
       BASE_MEALS.map((recipe) => {
@@ -56,6 +57,7 @@ export default function AddMealModal({
   };
 
   const [availableMeals, setAvailableMeals] = useState<MealData[]>([]);
+
 
   const hasReadyMeals = availableMeals.length > 0;
 
@@ -148,6 +150,7 @@ export default function AddMealModal({
   useEffect(() => {
     setAvailableMeals((prev) => mergeMeals(baseMeals, readyMeals, prev));
   }, [baseMeals, readyMeals]);
+
 
   // Если после загрузки появились готовые блюда — переключаем вкладку
   useEffect(() => {
