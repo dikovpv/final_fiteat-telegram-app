@@ -73,11 +73,11 @@ export default function ThemeToggle() {
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="p-2 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-muted)] text-[var(--text-primary)] shadow-[var(--shadow-soft)] hover:border-[var(--border-strong)] transition-colors"
+        className="p-2.5 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] text-[var(--text-primary)] shadow-[var(--shadow-soft)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-muted)] transition-colors flex items-center justify-center"
       >
         {theme === 'dark' ? <Moon className="w-5 h-5" /> :
          theme === 'light' ? <Sun className="w-5 h-5" /> :
-         <Palette className="w-5 h-5" />}
+          <Palette className="w-5 h-5" />}
       </button>
 
       <AnimatePresence>

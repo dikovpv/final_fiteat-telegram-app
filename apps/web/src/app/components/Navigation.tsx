@@ -24,15 +24,19 @@ function NavLink({ href, icon, label }: NavLinkProps) {
   return (
     <Link
       href={href}
-      className={`nav-item flex flex-col items-center text-[11px] transition-all duration-300 py-2 px-3 rounded-2xl border ${
+      className={`nav-item flex flex-col items-center text-[11px] font-semibold tracking-tight transition-all duration-300 py-2 px-3 rounded-2xl border ${
         isActive
           ? "text-[var(--accent)] bg-[var(--accent-muted)] border-[var(--border-soft)] shadow-[var(--shadow-soft)]"
-          : "text-[var(--text-muted)] border-transparent hover:text-[var(--text-primary)] hover:bg-[var(--surface-muted)]"
+          : "text-[var(--text-secondary)] border-transparent hover:text-[var(--text-primary)] hover:bg-[var(--surface-muted)]"
       }`}
     >
       <motion.div
-        className="w-6 h-6 mb-1"
-        whileHover={{ scale: 1.08 }}
+        className={`w-9 h-9 mb-1 flex items-center justify-center rounded-2xl border transition-colors ${
+          isActive
+            ? "bg-[var(--accent-muted)] border-[var(--border-soft)]"
+            : "bg-[var(--surface-muted)] border-[var(--border-soft)]"
+        }`}
+        whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.94 }}
       >
         {icon}
