@@ -4,23 +4,16 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import {
-  Filter,
-  Flame,
-  UtensilsCrossed,
-  Sparkles,
-  Lock,
-  Wand2,
-  ChevronRight,
-} from "lucide-react";
+import { Filter, Flame, UtensilsCrossed, Sparkles, Lock } from "lucide-react";
 
-import {
-  meals,
-  type MealRecipe,
-  type MealType,
-  computeMealNutrition,
-} from "./meals-data";
+import { meals, type MealRecipe, type MealType, computeMealNutrition } from "./meals-data";
 import { getUserPlan, type PlanType } from "@/lib/user-plan";
+import {
+  DEFAULT_MEAL_SPLIT_ID,
+  MEAL_SPLIT_PRESETS,
+  MEAL_SPLIT_STORAGE_KEY,
+  type MealSplitPreset,
+} from "./meal-presets";
 
 // ----- типы и константы -----
 
@@ -40,25 +33,6 @@ type MealWithNutrition = {
   carbs: number;
 };
 
-type DailyRecommendation = {
-  // по каждому приёму пищи — массив до 3 рецептов с подсказкой порции
-  byType: Partial<Record<MealType, MealPortionSuggestion[]>>;
-  totalCalories: number;
-  totalProtein: number;
-  totalFat: number;
-  totalCarbs: number;
-};
-
-type MealPortionSuggestion = {
-  meal: MealRecipe;
-  portionCalories: number;
-  portionProtein: number;
-  portionFat: number;
-  portionCarbs: number;
-  factor: number;
-  score: number;
-};
-
 const MEAL_TYPE_LABELS: Record<MealType, string> = {
   breakfast: "Завтрак",
   lunch: "Обед",
@@ -74,16 +48,6 @@ const MEAL_TYPES_ORDER: MealType[] = [
   "snack",
   "dessert",
 ];
-
-const MEAL_CALORIE_RATIOS: Record<MealType, number> = {
-  breakfast: 0.25,
-  lunch: 0.3,
-  dinner: 0.3,
-  snack: 0.1,
-  dessert: 0.05,
-};
-
-const PORTION_PRESETS = [400, 500, 600, 700];
 
 // читаем только КБЖУ из localStorage, а тип плана — через getUserPlan()
 function loadUserPlanState(): UserPlanState {
@@ -142,16 +106,68 @@ export default function MealsPage() {
   const [selectedType, setSelectedType] = useState<MealType | "all">("all");
   const [calorieMin, setCalorieMin] = useState<string>("");
   const [calorieMax, setCalorieMax] = useState<string>("");
-  const [dailyRecommendation, setDailyRecommendation] =
-    useState<DailyRecommendation | null>(null);
+  const [mealSplitPresetId, setMealSplitPresetId] =
+    useState<MealSplitPreset["id"]>(DEFAULT_MEAL_SPLIT_ID);
 
   useEffect(() => {
     const state = loadUserPlanState();
     setUserPlan(state);
   }, []);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const presetFromStorage = window.localStorage.getItem(MEAL_SPLIT_STORAGE_KEY);
+    if (presetFromStorage && MEAL_SPLIT_PRESETS.some((p) => p.id === presetFromStorage)) {
+      setMealSplitPresetId(presetFromStorage as MealSplitPreset["id"]);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(MEAL_SPLIT_STORAGE_KEY, mealSplitPresetId);
+  }, [mealSplitPresetId]);
+
+  const mealSplitPreset = useMemo(
+    () =>
+      MEAL_SPLIT_PRESETS.find((preset) => preset.id === mealSplitPresetId) ||
+      MEAL_SPLIT_PRESETS[0],
+    [mealSplitPresetId],
+  );
+
   const isPro = !!userPlan?.isPro;
   const dailyCalories = userPlan?.calories ?? 2400;
+
+  const mealTargets = useMemo(() => {
+    if (!mealSplitPreset) return {};
+
+    return MEAL_TYPES_ORDER.reduce<
+      Partial<
+        Record<
+          MealType,
+          {
+            calories: number;
+            protein: number;
+            fat: number;
+            carbs: number;
+            share: number;
+          }
+        >
+      >
+    >((acc, type) => {
+      const share = mealSplitPreset.ratios[type] ?? 0;
+      if (share <= 0) return acc;
+
+      acc[type] = {
+        calories: Math.round(dailyCalories * share),
+        protein: Math.round((userPlan?.proteinGoal ?? 0) * share),
+        fat: Math.round((userPlan?.fatGoal ?? 0) * share),
+        carbs: Math.round((userPlan?.carbsGoal ?? 0) * share),
+        share,
+      };
+      return acc;
+    }, {});
+  }, [dailyCalories, mealSplitPreset, userPlan]);
 
   // Предрасчёт КБЖУ для всех рецептов
   const mealsWithNutrition: MealWithNutrition[] = useMemo(
@@ -166,28 +182,6 @@ export default function MealsPage() {
           carbs: n.perPortionCarbs,
         };
       }),
-    [],
-  );
-
-  const buildPortionOptions = React.useCallback(
-    (meal: MealRecipe) => {
-      const base = computeMealNutrition(meal);
-      const baseCalories = base.perPortionCalories || 1;
-
-      return PORTION_PRESETS.map((portionCalories) => {
-        const factor = portionCalories / baseCalories;
-
-        return {
-          meal,
-          portionCalories,
-          portionProtein: base.perPortionProtein * factor,
-          portionFat: base.perPortionFat * factor,
-          portionCarbs: base.perPortionCarbs * factor,
-          factor,
-          score: 0,
-        } satisfies MealPortionSuggestion;
-      });
-    },
     [],
   );
 
@@ -214,96 +208,6 @@ export default function MealsPage() {
       return true;
     });
   }, [mealsWithNutrition, selectedType, calorieMin, calorieMax]);
-
-  // Авто-подбор дня: по КАЖДОМУ приёму — до 3 вариантов
-  const handleBuildDay = () => {
-    const plan = userPlan ?? {
-      isPro,
-      calories: dailyCalories,
-      proteinGoal: 160,
-      fatGoal: 80,
-      carbsGoal: 300,
-    };
-
-    const availableMeals = mealsWithNutrition.filter((mwn) => {
-      if (plan.isPro) return true;
-      return !mwn.meal.proOnly;
-    });
-
-    const byType: Partial<Record<MealType, MealRecipe[]>> = {};
-    let totalCalories = 0;
-    let totalProtein = 0;
-    let totalFat = 0;
-    let totalCarbs = 0;
-
-    for (const type of MEAL_TYPES_ORDER) {
-      const candidates = availableMeals.filter(
-        (mwn) => mwn.meal.mealType === type,
-      );
-      if (candidates.length === 0) continue;
-
-      const share = MEAL_CALORIE_RATIOS[type] ?? 0.25;
-      const targetCalories = plan.calories * share;
-      const targetProtein = plan.proteinGoal * share;
-
-      const suggestions: MealPortionSuggestion[] = candidates
-        .map((candidate) => {
-          const options = buildPortionOptions(candidate.meal);
-
-          const bestOption = options.reduce<MealPortionSuggestion | null>(
-            (best, option) => {
-              const calorieDiff = Math.abs(option.portionCalories - targetCalories);
-              const proteinPenalty = Math.max(0, targetProtein - option.portionProtein) * 1.5;
-              const score = calorieDiff + proteinPenalty;
-
-              if (!best || score < best.score) {
-                return { ...option, score } satisfies MealPortionSuggestion;
-              }
-              return best;
-            },
-            null,
-          );
-
-          return (
-            bestOption || {
-              meal: candidate.meal,
-              portionCalories: candidate.calories,
-              portionProtein: candidate.protein,
-              portionFat: candidate.fat,
-              portionCarbs: candidate.carbs,
-              factor: 1,
-              score: Math.abs(candidate.calories - targetCalories),
-            }
-          );
-        })
-        .sort((a, b) => a.score - b.score);
-
-      const top3 = suggestions.slice(0, 3);
-      byType[type] = top3;
-
-      const best = top3[0];
-      if (best) {
-        totalCalories += best.portionCalories;
-        totalProtein += best.portionProtein;
-        totalFat += best.portionFat;
-        totalCarbs += best.portionCarbs;
-      }
-    }
-
-    setDailyRecommendation({
-      byType,
-      totalCalories,
-      totalProtein,
-      totalFat,
-      totalCarbs,
-    });
-  };
-
-  useEffect(() => {
-    if (userPlan) {
-      handleBuildDay();
-    }
-  }, [userPlan]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#05050a] via-[#10081d] to-[#1a1238] text-white pb-24">
@@ -333,114 +237,83 @@ export default function MealsPage() {
           )}
         </motion.div>
 
-        {/* Блок авто-подбора по плану */}
+        {/* Блок выбора пресета */}
         <motion.section
-          className="glass-card p-4 space-y-3"
+          className="glass-card p-4 space-y-4"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
         >
           <div className="flex items-start justify-between gap-3">
-            <div>
+            <div className="space-y-1">
               <h2 className="text-sm font-semibold flex items-center gap-2">
-                <Wand2 className="w-4 h-4 text-teal-300" />
-                Авто-подбор дня под твой план
+                Настрой деление калорий по приёмам пищи
               </h2>
-              <p className="text-xs text-gray-400 mt-1">
-                Я предложу до трёх вариантов для завтрака, обеда, ужина и
-                перекусов, чтобы уложиться в {dailyCalories} ккал.
+              <p className="text-xs text-gray-400">
+                Выбери стиль (классика / тяжёлый обед / равномерно). Эти проценты
+                сохранятся и будут применяться при открытии рецепта: я пересчитаю
+                порцию под твою цель без дробных ингредиентов.
               </p>
             </div>
-            <button
-              onClick={handleBuildDay}
-              className="cosmic-button px-3 py-2 text-xs"
-            >
-              Собрать день
-            </button>
+            <div className="text-right text-[11px] text-gray-500">
+              Текущая норма: ~{dailyCalories} ккал
+            </div>
           </div>
 
-          {dailyRecommendation && (
-            <div className="mt-3 rounded-xl bg-black/30 border border-white/10 p-3 space-y-3">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-gray-300 font-medium">
-                  Рекомендуемый день
-                </span>
-                <span className="text-gray-400">
-                  ~{Math.round(dailyRecommendation.totalCalories)} ккал
-                </span>
-              </div>
+          <div className="flex flex-wrap gap-2">
+            {MEAL_SPLIT_PRESETS.map((preset) => {
+              const active = preset.id === mealSplitPreset?.id;
+              const ratios = preset.ratios;
 
-              <div className="grid grid-cols-1 gap-3 text-xs">
-                {MEAL_TYPES_ORDER.map((t) => {
-                  const mealsForType = dailyRecommendation.byType[t];
-                  if (!mealsForType || mealsForType.length === 0) return null;
+              return (
+                <button
+                  key={preset.id}
+                  onClick={() => setMealSplitPresetId(preset.id)}
+                  className={`rounded-lg border px-3 py-2 text-left transition ${
+                    active
+                      ? "border-teal-400/70 bg-teal-500/10 text-teal-100"
+                      : "border-white/10 bg-black/20 text-gray-200"
+                  }`}
+                >
+                  <div className="font-semibold text-[13px] flex items-center gap-2">
+                    {preset.label}
+                    {active && (
+                      <span className="text-[10px] text-teal-200 bg-teal-500/20 px-2 py-0.5 rounded-full">
+                        выбрано
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-gray-400 leading-tight">
+                    {preset.description}
+                  </div>
+                  <div className="text-[11px] text-gray-500 leading-tight mt-1">
+                    З {Math.round(ratios.breakfast * 100)}% · О {Math.round(ratios.lunch * 100)}% · У {Math.round(ratios.dinner * 100)}% · П {Math.round(ratios.snack * 100)}%
+                  </div>
+                </button>
+              );
+            })}
+          </div>
 
-                  return (
-                    <div
-                      key={t}
-                      className="bg-black/25 rounded-lg px-3 py-2 space-y-1"
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-[11px] text-gray-500">
-                          {MEAL_TYPE_LABELS[t]}
-                        </span>
-                        <span className="text-[10px] text-gray-500">
-                          варианты: {mealsForType.length}
-                        </span>
-                      </div>
+          <div className="grid gap-2 md:grid-cols-2 text-[11px] text-gray-300">
+            {MEAL_TYPES_ORDER.map((type) => {
+              const target = mealTargets[type];
+              if (!target) return null;
 
-                      {mealsForType.slice(0, 3).map((suggestion, idx) => {
-                        const meal = suggestion.meal;
-                        const factorLabel =
-                          suggestion.factor > 1.05
-                            ? `x${suggestion.factor.toFixed(2)} порции`
-                            : suggestion.factor < 0.95
-                              ? `${(suggestion.factor * 100).toFixed(0)}% порции`
-                              : "1 порция";
-
-                        return (
-                          <Link
-                            key={meal.slug}
-                            href={`/meals/${meal.slug}`}
-                            className="flex items-center justify-between rounded-md bg-black/30 px-2 py-1.5 hover:bg-black/45 transition"
-                          >
-                            <div className="flex flex-col">
-                              <span className="text-[11px] text-gray-400">
-                                Вариант {idx + 1} · {factorLabel}
-                              </span>
-                              <span className="text-gray-100 text-[13px] line-clamp-1">
-                                {meal.title}
-                              </span>
-                            </div>
-                            <div className="flex items-end gap-3 text-[11px] text-right text-gray-400">
-                              <div className="flex flex-col items-end leading-tight">
-                                <span className="text-gray-300">
-                                  ~{Math.round(suggestion.portionCalories)} ккал
-                                </span>
-                                <span>
-                                  Б {Math.round(suggestion.portionProtein)}г · Ж{" "}
-                                  {Math.round(suggestion.portionFat)}г · У{" "}
-                                  {Math.round(suggestion.portionCarbs)}г
-                                </span>
-                              </div>
-                              <ChevronRight className="w-4 h-4 text-gray-500" />
-                            </div>
-                          </Link>
-                        );
-                      })}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="text-[11px] text-gray-500 border-t border-gray-700/70 pt-2 mt-1">
-                Итог за день (по первым вариантам): ~
-                {Math.round(dailyRecommendation.totalCalories)} ккал · Б{" "}
-                {Math.round(dailyRecommendation.totalProtein)}г · Ж{" "}
-                {Math.round(dailyRecommendation.totalFat)}г · У{" "}
-                {Math.round(dailyRecommendation.totalCarbs)}г
-              </div>
-            </div>
-          )}
+              return (
+                <div
+                  key={type}
+                  className="rounded-lg bg-black/25 border border-white/5 px-3 py-2 flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-gray-400">{MEAL_TYPE_LABELS[type]}</span>
+                    <span className="text-gray-500">{Math.round(target.share * 100)}%</span>
+                  </div>
+                  <div className="text-right text-gray-200">
+                    ~{target.calories} ккал · Б {target.protein}г · Ж {target.fat}г · У {target.carbs}г
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </motion.section>
 
         {/* Фильтры */}
@@ -528,6 +401,7 @@ export default function MealsPage() {
                   fat={mwn.fat}
                   carbs={mwn.carbs}
                   isLocked={!!mwn.meal.proOnly && !isPro}
+                  target={mealTargets[mwn.meal.mealType]}
                 />
               ))}
             </div>
@@ -547,8 +421,9 @@ function MealCard(props: {
   fat: number;
   carbs: number;
   isLocked: boolean;
+  target?: { calories: number; protein: number; fat: number; carbs: number };
 }) {
-  const { meal, calories, protein, fat, carbs, isLocked } = props;
+  const { meal, calories, protein, fat, carbs, isLocked, target } = props;
 
   const href = isLocked ? "/pro" : `/meals/${meal.slug}`;
 
@@ -585,6 +460,12 @@ function MealCard(props: {
             {meal.subtitle && (
               <p className="text-[11px] text-gray-400 mt-1 line-clamp-2">
                 {meal.subtitle}
+              </p>
+            )}
+
+            {target && (
+              <p className="text-[11px] text-teal-100/90 bg-teal-500/10 border border-teal-500/20 rounded-lg px-2 py-1 mt-2">
+                Цель пресета: ~{target.calories} ккал. Граммовки пересчитаю под эту цель без дробных ингредиентов.
               </p>
             )}
           </div>
