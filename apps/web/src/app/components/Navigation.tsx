@@ -10,7 +10,6 @@ import {
   NotebookPen,
   Home,
 } from "lucide-react";
-import ThemeToggle from "./ThemeToggle";
 
 interface NavLinkProps {
   href: string;
@@ -25,20 +24,20 @@ function NavLink({ href, icon, label }: NavLinkProps) {
   return (
     <Link
       href={href}
-      className={`nav-item flex flex-col items-center text-xs transition-all duration-300 py-2 px-3 rounded-lg ${
-        isActive 
-          ? "text-teal-400 bg-teal-400/10 scale-110" 
-          : "text-gray-400 hover:text-teal-400 hover:bg-white/5"
+      className={`nav-item flex flex-col items-center text-[11px] transition-all duration-300 py-2 px-3 rounded-2xl border ${
+        isActive
+          ? "text-[var(--accent)] bg-[var(--accent-muted)] border-[var(--border-soft)] shadow-[var(--shadow-soft)]"
+          : "text-[var(--text-muted)] border-transparent hover:text-[var(--text-primary)] hover:bg-[var(--surface-muted)]"
       }`}
     >
-      <motion.div 
+      <motion.div
         className="w-6 h-6 mb-1"
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.9 }}
+        whileHover={{ scale: 1.08 }}
+        whileTap={{ scale: 0.94 }}
       >
         {icon}
       </motion.div>
-      <span className="font-medium">{label}</span>
+      <span className="font-semibold leading-none">{label}</span>
     </Link>
   );
 }

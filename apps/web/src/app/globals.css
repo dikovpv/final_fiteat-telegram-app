@@ -28,18 +28,23 @@ button {
 .neon-glow-teal,
 .neon-glow-green,
 .neon-glow-blue {
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 12px 30px rgba(72, 226, 157, 0.25);
 }
 
 .neon-text-teal,
 .neon-text-green,
 .neon-text-blue {
-  color: var(--button-primary);
+  color: var(--accent);
 }
 
 .progress-ring {
   transition: stroke-dashoffset 0.5s ease-in-out;
   filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.12));
+}
+
+::selection {
+  background: var(--accent-muted);
+  color: var(--text-primary);
 }
 
 @keyframes slideInUp {

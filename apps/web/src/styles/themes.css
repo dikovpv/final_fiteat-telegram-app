@@ -1,61 +1,73 @@
 :root {
   color-scheme: light;
-  --background: #f3f4f6;
-  --background-strong: #e7e7e4;
-  --surface: #ffffff;
-  --surface-muted: #f5f5f2;
-  --surface-strong: #ecebe7;
-  --text-primary: #0f172a;
-  --text-secondary: #5b6471;
-  --text-muted: #8b91a1;
-  --border-soft: #e5e7eb;
-  --border-strong: #d4d6dc;
-  --chip-bg: #edeef2;
-  --chart-line: #111827;
-  --button-primary: #111827;
-  --button-primary-text: #f8f9fb;
-  --shadow-soft: 0 12px 30px rgba(15, 23, 42, 0.08);
-  --shadow-strong: 0 18px 40px rgba(15, 23, 42, 0.12);
+  --background: #e9edf3;
+  --background-strong: #dde3ec;
+  --surface: #f9fbfd;
+  --surface-muted: #f1f4f8;
+  --surface-strong: #e4e9f2;
+  --text-primary: #0c1524;
+  --text-secondary: #4f5868;
+  --text-muted: #6d7585;
+  --border-soft: #dce2eb;
+  --border-strong: #c8d1de;
+  --chip-bg: #e6ecf4;
+  --chart-line: #162033;
+  --accent: #48e29d;
+  --accent-strong: #28c57f;
+  --accent-contrast: #0d141f;
+  --accent-muted: rgba(40, 197, 127, 0.14);
+  --button-primary: var(--accent);
+  --button-primary-text: var(--accent-contrast);
+  --shadow-soft: 0 12px 30px rgba(12, 21, 36, 0.08);
+  --shadow-strong: 0 18px 40px rgba(12, 21, 36, 0.12);
 }
 
 .theme-light {
   color-scheme: light;
-  --background: #f3f4f6;
-  --background-strong: #e7e7e4;
-  --surface: #ffffff;
-  --surface-muted: #f5f5f2;
-  --surface-strong: #ecebe7;
-  --text-primary: #0f172a;
-  --text-secondary: #5b6471;
-  --text-muted: #8b91a1;
-  --border-soft: #e5e7eb;
-  --border-strong: #d4d6dc;
-  --chip-bg: #edeef2;
-  --chart-line: #111827;
-  --button-primary: #111827;
-  --button-primary-text: #f8f9fb;
-  --shadow-soft: 0 12px 30px rgba(15, 23, 42, 0.08);
-  --shadow-strong: 0 18px 40px rgba(15, 23, 42, 0.12);
+  --background: #e9edf3;
+  --background-strong: #dde3ec;
+  --surface: #f9fbfd;
+  --surface-muted: #f1f4f8;
+  --surface-strong: #e4e9f2;
+  --text-primary: #0c1524;
+  --text-secondary: #4f5868;
+  --text-muted: #6d7585;
+  --border-soft: #dce2eb;
+  --border-strong: #c8d1de;
+  --chip-bg: #e6ecf4;
+  --chart-line: #162033;
+  --accent: #48e29d;
+  --accent-strong: #28c57f;
+  --accent-contrast: #0d141f;
+  --accent-muted: rgba(40, 197, 127, 0.14);
+  --button-primary: var(--accent);
+  --button-primary-text: var(--accent-contrast);
+  --shadow-soft: 0 12px 30px rgba(12, 21, 36, 0.08);
+  --shadow-strong: 0 18px 40px rgba(12, 21, 36, 0.12);
 }
 
 .theme-dark {
   color-scheme: dark;
-  --background: #0f1115;
-  --background-strong: #0c0d11;
-  --surface: #161a20;
-  --surface-muted: #1a1f26;
-  --surface-strong: #1f242d;
-  --text-primary: #f4f5f7;
-  --text-secondary: #b1b7c2;
-  --text-muted: #8892a4;
-  --border-soft: #202733;
-  --border-strong: #2b3340;
-  --chip-bg: #1f242d;
-  --chart-line: #f7f7f5;
-  --button-primary: #f5f5f2;
-  --button-primary-text: #0c0f15;
+  --background: #090f1a;
+  --background-strong: #070c15;
+  --surface: #0f1726;
+  --surface-muted: #0c121f;
+  --surface-strong: #121a2a;
+  --text-primary: #f6f8fb;
+  --text-secondary: #b7c0d0;
+  --text-muted: #8f99ab;
+  --border-soft: #1a2334;
+  --border-strong: #253047;
+  --chip-bg: #131c2d;
+  --chart-line: #f6f8fb;
+  --accent: #4ce6a1;
+  --accent-strong: #2fcb86;
+  --accent-contrast: #041019;
+  --accent-muted: rgba(76, 230, 161, 0.14);
+  --button-primary: var(--accent);
+  --button-primary-text: var(--accent-contrast);
   --shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.35);
-  --shadow-strong: 0 18px 40px rgba(0, 0, 0, 0.45);
+  --shadow-strong: 0 18px 40px rgba(0, 0, 0, 0.48);
 }
 
 body {
@@ -63,23 +75,24 @@ body {
   color: var(--text-primary);
   min-height: 100vh;
   overflow-x: hidden;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color 0.35s ease, color 0.35s ease;
 }
 
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  transition: background-color 0.35s ease, color 0.35s ease, border-color 0.35s ease,
+    box-shadow 0.35s ease, transform 0.25s ease;
 }
 
 .card,
 .glass-card {
   background: var(--surface);
   border: 1px solid var(--border-soft);
-  border-radius: 18px;
+  border-radius: 20px;
   box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(6px);
+  backdrop-filter: blur(10px);
 }
 
 .glass-card:hover {
@@ -88,33 +101,35 @@ body {
 }
 
 .cosmic-button {
-  background: var(--button-primary);
-  color: var(--button-primary-text);
-  border: 1px solid var(--border-strong);
-  border-radius: 14px;
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+  color: var(--accent-contrast);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 16px;
   padding: 12px 20px;
   font-weight: 600;
-  box-shadow: var(--shadow-soft);
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
 
 .cosmic-button:hover {
   transform: translateY(-1px);
-  box-shadow: var(--shadow-strong);
+  filter: brightness(1.03);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.16);
 }
 
 .cosmic-nav {
-  background: var(--surface);
+  background: color-mix(in srgb, var(--surface) 88%, var(--background) 12%);
   border-top: 1px solid var(--border-soft);
-  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 -8px 28px rgba(0, 0, 0, 0.06);
+  backdrop-filter: blur(12px);
 }
 
 .nav-item {
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 .nav-item.active {
-  color: var(--text-primary);
+  color: var(--accent);
 }
 
 .nav-item:hover {
@@ -128,17 +143,13 @@ body {
   width: 100%;
   height: 100%;
   z-index: -1;
-  background:
-    radial-gradient(circle at 10% 20%, rgba(0, 0, 0, 0.04), transparent 40%),
-    radial-gradient(circle at 80% 0%, rgba(0, 0, 0, 0.06), transparent 45%),
+  background: radial-gradient(circle at 15% 20%, var(--accent-muted), transparent 32%),
+    radial-gradient(circle at 80% 0%, rgba(72, 226, 157, 0.08), transparent 35%),
     linear-gradient(180deg, var(--background) 0%, var(--background-strong) 100%);
 }
 
 .hero-gradient {
-  background: linear-gradient(135deg,
-      rgba(17, 24, 39, 0.05) 0%,
-      rgba(17, 24, 39, 0.08) 50%,
-      rgba(17, 24, 39, 0.1) 100%);
+  background: linear-gradient(135deg, rgba(72, 226, 157, 0.08) 0%, rgba(72, 226, 157, 0.02) 100%);
 }
 
 .stats-grid {
@@ -170,7 +181,8 @@ body::-webkit-scrollbar-thumb {
   }
 
   .cosmic-button {
-    padding: 10px 18px;
+    padding: 11px 18px;
     font-size: 14px;
+    border-radius: 14px;
   }
 }

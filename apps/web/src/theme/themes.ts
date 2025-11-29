@@ -13,20 +13,20 @@ export interface AppTheme {
 
 export const lightTheme: AppTheme = {
   name: 'light',
-  background: '#f3f4f6',
-  surface: '#ffffff',
-  textPrimary: '#0f172a',
-  textSecondary: '#5b6471',
-  accent: '#111827',
+  background: '#e9edf3',
+  surface: '#f9fbfd',
+  textPrimary: '#0c1524',
+  textSecondary: '#4f5868',
+  accent: '#48e29d',
 };
 
 export const darkTheme: AppTheme = {
   name: 'dark',
-  background: '#0f1115',
-  surface: '#161a20',
-  textPrimary: '#f4f5f7',
-  textSecondary: '#b1b7c2',
-  accent: '#f5f5f2',
+  background: '#090f1a',
+  surface: '#0f1726',
+  textPrimary: '#f6f8fb',
+  textSecondary: '#b7c0d0',
+  accent: '#4ce6a1',
 };
 
 export const THEMES: Record<ThemeName, AppTheme> = {
