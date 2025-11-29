@@ -33,7 +33,7 @@ export default function RootLayout({
           name="viewport"
           content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
         />
-        <meta name="theme-color" content="#0a0a0f" />
+        <meta name="theme-color" content="#f3f4f6" />
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icon-192x192.png" />
 
@@ -59,7 +59,7 @@ export default function RootLayout({
         />
       </head>
 
-      <body className="bg-gradient-to-b from-[#0a0a0f] via-[#1a0b2e] to-[#2d1b69] text-[#f0f0f5]">
+      <body className="antialiased text-[var(--text-primary)] bg-[var(--background)]">
         {/* Теперь сменой темы управляет только ThemeProvider + профиль */}
         <ThemeProvider>
           {/* Космический фон */}
