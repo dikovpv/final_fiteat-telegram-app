@@ -41,12 +41,22 @@ type MealWithNutrition = {
 };
 
 type DailyRecommendation = {
-  // по каждому приёму пищи — массив до 3 рецептов
-  byType: Partial<Record<MealType, MealRecipe[]>>;
+  // по каждому приёму пищи — массив до 3 рецептов с подсказкой порции
+  byType: Partial<Record<MealType, MealPortionSuggestion[]>>;
   totalCalories: number;
   totalProtein: number;
   totalFat: number;
   totalCarbs: number;
+};
+
+type MealPortionSuggestion = {
+  meal: MealRecipe;
+  portionCalories: number;
+  portionProtein: number;
+  portionFat: number;
+  portionCarbs: number;
+  factor: number;
+  score: number;
 };
 
 const MEAL_TYPE_LABELS: Record<MealType, string> = {
@@ -72,6 +82,8 @@ const MEAL_CALORIE_RATIOS: Record<MealType, number> = {
   snack: 0.1,
   dessert: 0.05,
 };
+
+const PORTION_PRESETS = [400, 500, 600, 700];
 
 // читаем только КБЖУ из localStorage, а тип плана — через getUserPlan()
 function loadUserPlanState(): UserPlanState {
@@ -157,6 +169,28 @@ export default function MealsPage() {
     [],
   );
 
+  const buildPortionOptions = React.useCallback(
+    (meal: MealRecipe) => {
+      const base = computeMealNutrition(meal);
+      const baseCalories = base.perPortionCalories || 1;
+
+      return PORTION_PRESETS.map((portionCalories) => {
+        const factor = portionCalories / baseCalories;
+
+        return {
+          meal,
+          portionCalories,
+          portionProtein: base.perPortionProtein * factor,
+          portionFat: base.perPortionFat * factor,
+          portionCarbs: base.perPortionCarbs * factor,
+          factor,
+          score: 0,
+        } satisfies MealPortionSuggestion;
+      });
+    },
+    [],
+  );
+
   // Фильтр по типу и диапазону калорий
   const filteredMeals: MealWithNutrition[] = useMemo(() => {
     const minCals = calorieMin ? Number(calorieMin) : null;
@@ -208,25 +242,51 @@ export default function MealsPage() {
       );
       if (candidates.length === 0) continue;
 
-      const target = plan.calories * (MEAL_CALORIE_RATIOS[type] ?? 0.25);
+      const share = MEAL_CALORIE_RATIOS[type] ?? 0.25;
+      const targetCalories = plan.calories * share;
+      const targetProtein = plan.proteinGoal * share;
 
-      // сортируем по близости к целевым калориям
-      const sorted = [...candidates].sort((a, b) => {
-        const da = Math.abs(a.calories - target);
-        const db = Math.abs(b.calories - target);
-        return da - db;
-      });
+      const suggestions: MealPortionSuggestion[] = candidates
+        .map((candidate) => {
+          const options = buildPortionOptions(candidate.meal);
 
-      const top3 = sorted.slice(0, 3);
-      byType[type] = top3.map((m) => m.meal);
+          const bestOption = options.reduce<MealPortionSuggestion | null>(
+            (best, option) => {
+              const calorieDiff = Math.abs(option.portionCalories - targetCalories);
+              const proteinPenalty = Math.max(0, targetProtein - option.portionProtein) * 1.5;
+              const score = calorieDiff + proteinPenalty;
 
-      // для "итог за день" считаем по лучшему варианту (первому)
+              if (!best || score < best.score) {
+                return { ...option, score } satisfies MealPortionSuggestion;
+              }
+              return best;
+            },
+            null,
+          );
+
+          return (
+            bestOption || {
+              meal: candidate.meal,
+              portionCalories: candidate.calories,
+              portionProtein: candidate.protein,
+              portionFat: candidate.fat,
+              portionCarbs: candidate.carbs,
+              factor: 1,
+              score: Math.abs(candidate.calories - targetCalories),
+            }
+          );
+        })
+        .sort((a, b) => a.score - b.score);
+
+      const top3 = suggestions.slice(0, 3);
+      byType[type] = top3;
+
       const best = top3[0];
       if (best) {
-        totalCalories += best.calories;
-        totalProtein += best.protein;
-        totalFat += best.fat;
-        totalCarbs += best.carbs;
+        totalCalories += best.portionCalories;
+        totalProtein += best.portionProtein;
+        totalFat += best.portionFat;
+        totalCarbs += best.portionCarbs;
       }
     }
 
@@ -238,6 +298,12 @@ export default function MealsPage() {
       totalCarbs,
     });
   };
+
+  useEffect(() => {
+    if (userPlan) {
+      handleBuildDay();
+    }
+  }, [userPlan]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#05050a] via-[#10081d] to-[#1a1238] text-white pb-24">
@@ -322,8 +388,15 @@ export default function MealsPage() {
                         </span>
                       </div>
 
-                      {mealsForType.slice(0, 3).map((meal, idx) => {
-                        const n = computeMealNutrition(meal);
+                      {mealsForType.slice(0, 3).map((suggestion, idx) => {
+                        const meal = suggestion.meal;
+                        const factorLabel =
+                          suggestion.factor > 1.05
+                            ? `x${suggestion.factor.toFixed(2)} порции`
+                            : suggestion.factor < 0.95
+                              ? `${(suggestion.factor * 100).toFixed(0)}% порции`
+                              : "1 порция";
+
                         return (
                           <Link
                             key={meal.slug}
@@ -332,17 +405,23 @@ export default function MealsPage() {
                           >
                             <div className="flex flex-col">
                               <span className="text-[11px] text-gray-400">
-                                Вариант {idx + 1}
+                                Вариант {idx + 1} · {factorLabel}
                               </span>
                               <span className="text-gray-100 text-[13px] line-clamp-1">
                                 {meal.title}
                               </span>
                             </div>
-                            <div className="flex items-center gap-2 text-[11px] text-gray-400">
-                              <span>
-                                {Math.round(n.perPortionCalories)} ккал · Б{" "}
-                                {Math.round(n.perPortionProtein)}г
-                              </span>
+                            <div className="flex items-end gap-3 text-[11px] text-right text-gray-400">
+                              <div className="flex flex-col items-end leading-tight">
+                                <span className="text-gray-300">
+                                  ~{Math.round(suggestion.portionCalories)} ккал
+                                </span>
+                                <span>
+                                  Б {Math.round(suggestion.portionProtein)}г · Ж{" "}
+                                  {Math.round(suggestion.portionFat)}г · У{" "}
+                                  {Math.round(suggestion.portionCarbs)}г
+                                </span>
+                              </div>
                               <ChevronRight className="w-4 h-4 text-gray-500" />
                             </div>
                           </Link>

@@ -1,9 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Heart, Trash2, Plus, Search } from "lucide-react";
+import { meals as BASE_MEALS, computeMealNutrition } from "../../meals/meals-data";
 import { MealData } from "../../../types/meal";
+import {
+  DEFAULT_ENTRY,
+  DIARY_SELECTED_DATE_KEY,
+  DIARY_STORAGE_PREFIX,
+  type DiaryEntry,
+} from "../diary-types";
 
 interface AddMealModalProps {
   onClose: () => void;
@@ -18,7 +25,41 @@ export default function AddMealModal({
   onSave,
   readyMeals = [],
 }: AddMealModalProps) {
-  const hasReadyMeals = readyMeals.length > 0;
+  const baseMeals = useMemo<MealData[]>(
+    () =>
+      BASE_MEALS.map((recipe) => {
+        const nutrition = computeMealNutrition(recipe);
+
+        return {
+          id: recipe.slug,
+          title: recipe.title,
+          calories: Math.round(nutrition.perPortionCalories),
+          protein: Math.round(nutrition.perPortionProtein),
+          fat: Math.round(nutrition.perPortionFat),
+          carbs: Math.round(nutrition.perPortionCarbs),
+          type: recipe.mealType,
+          category: recipe.mealType,
+        };
+      }),
+    []
+  );
+
+  const mergeMeals = (...lists: MealData[][]) => {
+    const map = new Map<string, MealData>();
+
+    lists.flat().forEach((meal) => {
+      const id = (meal as any)?.id || (meal as any)?.slug || meal.title;
+      if (id) map.set(id, meal);
+    });
+
+    return Array.from(map.values());
+  };
+
+  const [availableMeals, setAvailableMeals] = useState<MealData[]>(() =>
+    mergeMeals(baseMeals, readyMeals)
+  );
+
+  const hasReadyMeals = availableMeals.length > 0;
 
   const [tab, setTab] = useState<"ready" | "favorites" | "added" | "manual">(
     hasReadyMeals ? "ready" : "favorites"
@@ -49,21 +90,28 @@ export default function AddMealModal({
   ];
 
   // Фильтрация готовых блюд из приложения
-  const filteredMeals = hasReadyMeals
-    ? readyMeals.filter((meal) => {
-        const matchesSearch = (meal.title || "")
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase());
+  const filteredMeals = useMemo(
+    () =>
+      hasReadyMeals
+        ? availableMeals.filter((meal) => {
+            const matchesSearch = (meal.title || "")
+              .toLowerCase()
+              .includes(searchQuery.toLowerCase());
 
-        const mealType =
-          (meal as any).type || (meal as any).category || "other";
+            const mealType =
+              (meal as any).type ||
+              (meal as any).mealType ||
+              (meal as any).category ||
+              "other";
 
-        const matchesCategory =
-          selectedCategory === "all" || mealType === selectedCategory;
+            const matchesCategory =
+              selectedCategory === "all" || mealType === selectedCategory;
 
-        return matchesSearch && matchesCategory;
-      })
-    : [];
+            return matchesSearch && matchesCategory;
+          })
+        : [],
+    [availableMeals, hasReadyMeals, searchQuery, selectedCategory]
+  );
 
   // Загрузка локальных избранных и своих блюд
   useEffect(() => {
@@ -76,6 +124,39 @@ export default function AddMealModal({
       // тихо игнорируем
     }
   }, []);
+
+  // Загружаем блюда из дневника для выбранной даты, если модалка открыта отдельно
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const selectedDate =
+        localStorage.getItem(DIARY_SELECTED_DATE_KEY) ||
+        new Date().toISOString().split("T")[0];
+      const key = `${DIARY_STORAGE_PREFIX}${selectedDate}`;
+      const saved = localStorage.getItem(key);
+      if (!saved) return;
+
+      const parsed: DiaryEntry = { ...DEFAULT_ENTRY, ...JSON.parse(saved) };
+      const meals = Array.isArray(parsed.meals) ? parsed.meals : [];
+
+      setAvailableMeals((prev) => mergeMeals(baseMeals, readyMeals, prev, meals));
+    } catch {
+      // игнорируем, чтобы не ломать модалку при проблемах с localStorage
+    }
+  }, [baseMeals, readyMeals]);
+
+  // Следим за внешними изменениями, чтобы подхватывать актуальные блюда
+  useEffect(() => {
+    setAvailableMeals((prev) => mergeMeals(baseMeals, readyMeals, prev));
+  }, [baseMeals, readyMeals]);
+
+  // Если после загрузки появились готовые блюда — переключаем вкладку
+  useEffect(() => {
+    if (hasReadyMeals && tab !== "ready") {
+      setTab("ready");
+    }
+  }, [hasReadyMeals, tab]);
 
   const saveFavorites = (data: MealData[]) => {
     try {
