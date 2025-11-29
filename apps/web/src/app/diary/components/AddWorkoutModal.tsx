@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Dumbbell,
@@ -10,6 +10,14 @@ import {
   Clock,
   Flame,
 } from "lucide-react";
+import {
+  DEFAULT_ENTRY,
+  DIARY_SELECTED_DATE_KEY,
+  DIARY_STORAGE_PREFIX,
+  type DiaryEntry,
+  type DiaryWorkout,
+} from "../diary-types";
+import { WORKOUT_TEMPLATES } from "../../workouts/workouts-data";
 
 export interface WorkoutData {
   id?: string;
@@ -20,6 +28,9 @@ export interface WorkoutData {
   duration?: number;
   type?: "strength" | "cardio" | "flexibility";
   calories?: number;
+  planSlug?: string;
+  planTitle?: string;
+  exerciseSlug?: string;
 }
 
 interface AddWorkoutModalProps {
@@ -35,7 +46,38 @@ export default function AddWorkoutModal({
   onSave,
   readyWorkouts = [],
 }: AddWorkoutModalProps) {
-  const hasReadyWorkouts = readyWorkouts.length > 0;
+  const baseWorkouts = useMemo<WorkoutData[]>(
+    () =>
+      WORKOUT_TEMPLATES.flatMap((plan) =>
+        plan.exercises.map((exercise) => ({
+          id: exercise.id || exercise.slug,
+          name: exercise.name,
+          sets: exercise.sets,
+          reps: exercise.reps,
+          type: exercise.type,
+          planSlug: plan.slug,
+          exerciseSlug: exercise.slug,
+          planTitle: plan.title,
+        }))
+      ),
+    []
+  );
+
+  const mergeWorkouts = (...lists: WorkoutData[][]) => {
+    const map = new Map<string, WorkoutData>();
+
+    lists.flat().forEach((workout) => {
+      const id = workout?.id || workout?.exerciseSlug || workout?.name;
+      if (id) map.set(id, workout);
+    });
+
+    return Array.from(map.values());
+  };
+
+  const [availableWorkouts, setAvailableWorkouts] = useState<WorkoutData[]>(() =>
+    mergeWorkouts(baseWorkouts, readyWorkouts)
+  );
+  const hasReadyWorkouts = availableWorkouts.length > 0;
 
   const [tab, setTab] = useState<"ready" | "added" | "manual">(
     hasReadyWorkouts ? "ready" : "added"
@@ -65,16 +107,24 @@ export default function AddWorkoutModal({
   ];
 
   // Фильтрация упражнений из приложения
-  const filteredWorkouts = hasReadyWorkouts
-    ? readyWorkouts.filter((workout) => {
-        const matchesSearch = (workout.name || "")
-          .toLowerCase()
-          .includes(searchQuery.toLowerCase());
-        const matchesType =
-          selectedType === "all" || workout.type === selectedType;
-        return matchesSearch && matchesType;
-      })
-    : [];
+  const filteredWorkouts = useMemo(
+    () =>
+      hasReadyWorkouts
+        ? availableWorkouts.filter((workout) => {
+            const matchesSearch = [
+              workout.name || "",
+              workout.planTitle || "",
+            ]
+              .join(" ")
+              .toLowerCase()
+              .includes(searchQuery.toLowerCase());
+            const matchesType =
+              selectedType === "all" || workout.type === selectedType;
+            return matchesSearch && matchesType;
+          })
+        : [],
+    [availableWorkouts, hasReadyWorkouts, searchQuery, selectedType]
+  );
 
   // Загрузка "моих упражнений" из localStorage
   useEffect(() => {
@@ -85,6 +135,43 @@ export default function AddWorkoutModal({
       // игнор
     }
   }, []);
+
+  // Подтягиваем упражнения из дневника для выбранной даты
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const selectedDate =
+        localStorage.getItem(DIARY_SELECTED_DATE_KEY) ||
+        new Date().toISOString().split("T")[0];
+      const key = `${DIARY_STORAGE_PREFIX}${selectedDate}`;
+      const saved = localStorage.getItem(key);
+      if (!saved) return;
+
+      const parsed: DiaryEntry = { ...DEFAULT_ENTRY, ...JSON.parse(saved) };
+      const workouts: DiaryWorkout[] = Array.isArray(parsed.workouts)
+        ? parsed.workouts
+        : [];
+
+      setAvailableWorkouts((prev) =>
+        mergeWorkouts(baseWorkouts, readyWorkouts, prev, workouts)
+      );
+    } catch {
+      // просто пропускаем ошибку
+    }
+  }, [baseWorkouts, readyWorkouts]);
+
+  useEffect(() => {
+    setAvailableWorkouts((prev) =>
+      mergeWorkouts(baseWorkouts, readyWorkouts, prev)
+    );
+  }, [baseWorkouts, readyWorkouts]);
+
+  useEffect(() => {
+    if (hasReadyWorkouts && tab !== "ready") {
+      setTab("ready");
+    }
+  }, [hasReadyWorkouts, tab]);
 
   const saveAdded = (data: WorkoutData[]) => {
     try {
@@ -468,6 +555,12 @@ function WorkoutItem({
             <span className="text-lg">{getTypeIcon(workout.type)}</span>
             <p className="font-semibold text-white">{workout.name}</p>
           </div>
+
+          {workout.planTitle && (
+            <p className="text-[11px] text-gray-500 mb-1">
+              План: {workout.planTitle}
+            </p>
+          )}
 
           <div className="flex items-center gap-3 text-xs text-gray-400">
             {workout.type && (

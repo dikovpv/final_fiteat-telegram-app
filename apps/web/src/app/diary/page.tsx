@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -28,6 +28,11 @@ import AddWorkoutModal from "./components/AddWorkoutModal";
 import AddChecklistModal from "./components/AddChecklistModal";
 import WaterTracker from "./components/WaterTracker";
 import SleepTracker from "./components/SleepTracker";
+import {
+  meals as MEAL_RECIPES,
+  computeMealNutrition,
+} from "../meals/meals-data";
+import { WORKOUT_TEMPLATES } from "../workouts/workouts-data";
 
 import {
   DEFAULT_ENTRY,
@@ -63,6 +68,45 @@ export default function DiaryPage() {
 
   const [diaryData, setDiaryData] = useState<DiaryEntry | null>(DEFAULT_ENTRY);
   const [isLoaded, setIsLoaded] = useState(false);
+
+  // готовые списки рецептов и упражнений для быстрого добавления из модалок
+  const readyMeals = useMemo<DiaryMeal[]>(
+    () =>
+      MEAL_RECIPES.map((recipe) => {
+        const nutrition = computeMealNutrition(recipe);
+
+        return {
+          id: recipe.slug,
+          slug: recipe.slug,
+          title: recipe.title,
+          calories: Math.round(nutrition.perPortionCalories),
+          protein: Math.round(nutrition.perPortionProtein),
+          fat: Math.round(nutrition.perPortionFat),
+          carbs: Math.round(nutrition.perPortionCarbs),
+          type: recipe.mealType,
+          category: recipe.mealType,
+        } satisfies DiaryMeal;
+      }),
+    []
+  );
+
+  const readyWorkouts = useMemo<Workout[]>(
+    () =>
+      WORKOUT_TEMPLATES.flatMap((plan) =>
+        plan.exercises.map((exercise) => ({
+          id: exercise.id || exercise.slug,
+          name: exercise.name,
+          sets: exercise.sets,
+          reps: exercise.reps,
+          type: exercise.type,
+          planSlug: plan.slug,
+          exerciseSlug: exercise.slug,
+          // чтобы в списке было видно, из какого плана упражнение
+          planTitle: plan.title,
+        }))
+      ),
+    []
+  );
 
   // нормы КБЖУ из профиля
   const [goals, setGoals] = useState({
@@ -153,6 +197,28 @@ export default function DiaryPage() {
     workouts: Array.isArray(rawEntry.workouts) ? rawEntry.workouts : [],
     checklist: Array.isArray(rawEntry.checklist) ? rawEntry.checklist : [],
   };
+
+  const mealsForModal = useMemo(() => {
+    const map = new Map<string, DiaryMeal>();
+
+    [...readyMeals, ...entry.meals].forEach((meal) => {
+      const id = meal.id || meal.slug || meal.title;
+      if (id) map.set(id, meal);
+    });
+
+    return Array.from(map.values());
+  }, [entry.meals, readyMeals]);
+
+  const workoutsForModal = useMemo(() => {
+    const map = new Map<string, Workout>();
+
+    [...readyWorkouts, ...entry.workouts].forEach((workout) => {
+      const id = workout.id || workout.name;
+      if (id) map.set(id, workout);
+    });
+
+    return Array.from(map.values());
+  }, [entry.workouts, readyWorkouts]);
 
   // подсчёт БЖУ за день
   const totals = entry.meals.reduce(
@@ -1100,68 +1166,71 @@ export default function DiaryPage() {
       </div>
 
       {/* Модальные окна */}
-    {showMealModal && (
-  <AddMealModal
-    onClose={() => setShowMealModal(false)}
-    // сюда даём всё, что уже есть в разделе "Питание" дневника
-    readyMeals={entry.meals}
-    onSave={(meal) => {
-      const m = meal as any;
+      {showMealModal && (
+        <AddMealModal
+          onClose={() => setShowMealModal(false)}
+          // сюда даём всё, что уже есть в разделе "Питание" дневника + база рецептов
+          readyMeals={mealsForModal}
+          onSave={(meal) => {
+            const m = meal as any;
 
-      const newMeal: DiaryMeal = {
-        id: Date.now().toString(),
-        title: m.title,
-        calories: m.calories ?? 0,
-        protein: m.protein ?? 0,
-        fat: m.fat ?? 0,
-        carbs: m.carbs ?? 0,
-        done: false,
-        time: new Date().toLocaleTimeString("ru-RU", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        type: m.type as DiaryMeal["type"] | undefined,
-      };
+            const newMeal: DiaryMeal = {
+              id: Date.now().toString(),
+              title: m.title,
+              calories: m.calories ?? 0,
+              protein: m.protein ?? 0,
+              fat: m.fat ?? 0,
+              carbs: m.carbs ?? 0,
+              done: false,
+              time: new Date().toLocaleTimeString("ru-RU", {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+              type: m.type as DiaryMeal["type"] | undefined,
+            };
 
-      setDiaryData((prev) => {
-        const base = prev ?? DEFAULT_ENTRY;
-        return {
-          ...base,
-          meals: [...base.meals, newMeal],
-        };
-      });
-      setShowMealModal(false);
-    }}
-  />
-)}
+            setDiaryData((prev) => {
+              const base = prev ?? DEFAULT_ENTRY;
+              return {
+                ...base,
+                meals: [...base.meals, newMeal],
+              };
+            });
+            setShowMealModal(false);
+          }}
+        />
+      )}
 
-{showWorkoutModal && (
-  <AddWorkoutModal
-    onClose={() => setShowWorkoutModal(false)}
-    // сюда даём всё, что уже есть в разделе "Тренировки" дневника
-    readyWorkouts={entry.workouts}
-    onSave={(workout) => {
-      const newWorkout: Workout = {
-        id: Date.now().toString(),
-        name: workout.name,
-        sets: workout.sets ?? 3,
-        reps: workout.reps ?? 10,
-        weight: workout.weight,
-        duration: workout.duration,
-        type: workout.type,
-        done: false,
-      };
-      setDiaryData((prev) => {
-        const base = prev ?? DEFAULT_ENTRY;
-        return {
-          ...base,
-          workouts: [...base.workouts, newWorkout],
-        };
-      });
-      setShowWorkoutModal(false);
-    }}
-  />
-)}
+      {showWorkoutModal && (
+        <AddWorkoutModal
+          onClose={() => setShowWorkoutModal(false)}
+          // сюда даём всё, что уже есть в разделе "Тренировки" дневника + база планов
+          readyWorkouts={workoutsForModal}
+          onSave={(workout) => {
+            const newWorkout: Workout = {
+              id: Date.now().toString(),
+              name: workout.name,
+              sets: workout.sets ?? 3,
+              reps: workout.reps ?? 10,
+              weight: workout.weight,
+              duration: workout.duration,
+              type: workout.type,
+              planSlug: workout.planSlug,
+              planTitle: workout.planTitle,
+              exerciseSlug: workout.exerciseSlug,
+              done: false,
+            };
+            setDiaryData((prev) => {
+              const base = prev ?? DEFAULT_ENTRY;
+              return {
+                ...base,
+                workouts: [...base.workouts, newWorkout],
+              };
+            });
+            setShowWorkoutModal(false);
+          }}
+        />
+      )}
 
 
       <AnimatePresence>
