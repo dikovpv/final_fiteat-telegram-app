@@ -59,6 +59,15 @@ type MealPortionSuggestion = {
   score: number;
 };
 
+type MealSplitPreset = {
+  id: "classic" | "heavy-lunch" | "even";
+  label: string;
+  description: string;
+  ratios: Record<MealType, number>;
+};
+
+type ProteinDistributionMode = "byShare" | "even";
+
 const MEAL_TYPE_LABELS: Record<MealType, string> = {
   breakfast: "Завтрак",
   lunch: "Обед",
@@ -75,13 +84,48 @@ const MEAL_TYPES_ORDER: MealType[] = [
   "dessert",
 ];
 
-const MEAL_CALORIE_RATIOS: Record<MealType, number> = {
-  breakfast: 0.25,
-  lunch: 0.3,
-  dinner: 0.3,
-  snack: 0.1,
-  dessert: 0.05,
-};
+const MEAL_SPLIT_PRESETS: MealSplitPreset[] = [
+  {
+    id: "classic",
+    label: "Классика",
+    description: "25% завтрак · 35% обед · 30% ужин · 10% перекус",
+    ratios: {
+      breakfast: 0.25,
+      lunch: 0.35,
+      dinner: 0.3,
+      snack: 0.1,
+      dessert: 0,
+    },
+  },
+  {
+    id: "heavy-lunch",
+    label: "Тяжёлый обед",
+    description: "30% завтрак · 40% обед · 15% ужин · 15% перекус",
+    ratios: {
+      breakfast: 0.3,
+      lunch: 0.4,
+      dinner: 0.15,
+      snack: 0.15,
+      dessert: 0,
+    },
+  },
+  {
+    id: "even",
+    label: "Равномерно",
+    description: "30% завтрак · 30% обед · 30% ужин · 10% перекус",
+    ratios: {
+      breakfast: 0.3,
+      lunch: 0.3,
+      dinner: 0.3,
+      snack: 0.1,
+      dessert: 0,
+    },
+  },
+];
+
+const MEAL_SPLIT_STORAGE_KEY = "fitEatMealSplitPreset";
+const PROTEIN_MODE_STORAGE_KEY = "fitEatProteinMode";
+const DEFAULT_MEAL_SPLIT_ID: MealSplitPreset["id"] = MEAL_SPLIT_PRESETS[0]?.id ?? "classic";
 
 const PORTION_PRESETS = [400, 500, 600, 700];
 
@@ -144,11 +188,56 @@ export default function MealsPage() {
   const [calorieMax, setCalorieMax] = useState<string>("");
   const [dailyRecommendation, setDailyRecommendation] =
     useState<DailyRecommendation | null>(null);
+  const [mealSplitPresetId, setMealSplitPresetId] =
+    useState<MealSplitPreset["id"]>(DEFAULT_MEAL_SPLIT_ID);
+  const [proteinDistribution, setProteinDistribution] =
+    useState<ProteinDistributionMode>("byShare");
 
   useEffect(() => {
     const state = loadUserPlanState();
     setUserPlan(state);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const presetFromStorage = window.localStorage.getItem(MEAL_SPLIT_STORAGE_KEY);
+    if (presetFromStorage && MEAL_SPLIT_PRESETS.some((p) => p.id === presetFromStorage)) {
+      setMealSplitPresetId(presetFromStorage as MealSplitPreset["id"]);
+    }
+
+    const proteinMode = window.localStorage.getItem(PROTEIN_MODE_STORAGE_KEY);
+    if (proteinMode === "even" || proteinMode === "byShare") {
+      setProteinDistribution(proteinMode);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(MEAL_SPLIT_STORAGE_KEY, mealSplitPresetId);
+  }, [mealSplitPresetId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(PROTEIN_MODE_STORAGE_KEY, proteinDistribution);
+  }, [proteinDistribution]);
+
+  const mealSplitPreset = useMemo(
+    () =>
+      MEAL_SPLIT_PRESETS.find((preset) => preset.id === mealSplitPresetId) ||
+      MEAL_SPLIT_PRESETS[0],
+    [mealSplitPresetId],
+  );
+
+  const evenProteinShare = useMemo(() => {
+    const eligibleSlots = MEAL_TYPES_ORDER.filter(
+      (t) => t !== "dessert" && (mealSplitPreset?.ratios[t] ?? 0) > 0,
+    );
+
+    if (eligibleSlots.length === 0) return null;
+
+    return 1 / eligibleSlots.length;
+  }, [mealSplitPreset]);
 
   const isPro = !!userPlan?.isPro;
   const dailyCalories = userPlan?.calories ?? 2400;
@@ -240,11 +329,15 @@ export default function MealsPage() {
       const candidates = availableMeals.filter(
         (mwn) => mwn.meal.mealType === type,
       );
-      if (candidates.length === 0) continue;
+      const share = mealSplitPreset?.ratios[type] ?? 0;
+      if (candidates.length === 0 || share <= 0) continue;
 
-      const share = MEAL_CALORIE_RATIOS[type] ?? 0.25;
       const targetCalories = plan.calories * share;
-      const targetProtein = plan.proteinGoal * share;
+      const proteinShare =
+        proteinDistribution === "even"
+          ? evenProteinShare ?? share
+          : share;
+      const targetProtein = plan.proteinGoal * proteinShare;
 
       const suggestions: MealPortionSuggestion[] = candidates
         .map((candidate) => {
@@ -303,7 +396,7 @@ export default function MealsPage() {
     if (userPlan) {
       handleBuildDay();
     }
-  }, [userPlan]);
+  }, [userPlan, mealSplitPreset, proteinDistribution]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#05050a] via-[#10081d] to-[#1a1238] text-white pb-24">
@@ -358,6 +451,83 @@ export default function MealsPage() {
             </button>
           </div>
 
+          <div className="grid gap-3 md:grid-cols-2 text-xs">
+            <div className="space-y-2">
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">
+                Деление калорий по приёмам пищи
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {MEAL_SPLIT_PRESETS.map((preset) => {
+                  const active = preset.id === mealSplitPreset?.id;
+                  const ratios = preset.ratios;
+
+                  return (
+                    <button
+                      key={preset.id}
+                      onClick={() => setMealSplitPresetId(preset.id)}
+                      className={`rounded-lg border px-3 py-2 text-left transition ${
+                        active
+                          ? "border-teal-400/70 bg-teal-500/10 text-teal-100"
+                          : "border-white/10 bg-black/20 text-gray-200"
+                      }`}
+                    >
+                      <div className="font-semibold text-[13px] flex items-center gap-2">
+                        {preset.label}
+                        {active && (
+                          <span className="text-[10px] text-teal-200 bg-teal-500/20 px-2 py-0.5 rounded-full">
+                            выбрано
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-gray-400 leading-tight">
+                        {preset.description}
+                      </div>
+                      <div className="text-[11px] text-gray-400 leading-tight mt-1">
+                        З {Math.round(ratios.breakfast * 100)}% · О {Math.round(ratios.lunch * 100)}% · У {Math.round(ratios.dinner * 100)}% · П {Math.round(ratios.snack * 100)}%
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-[11px] uppercase tracking-wide text-gray-500">
+                Как делить белок
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setProteinDistribution("byShare")}
+                  className={`rounded-lg border px-3 py-2 transition ${
+                    proteinDistribution === "byShare"
+                      ? "border-teal-400/70 bg-teal-500/10 text-teal-100"
+                      : "border-white/10 bg-black/20 text-gray-200"
+                  }`}
+                >
+                  По тем же процентам
+                </button>
+                <button
+                  onClick={() => setProteinDistribution("even")}
+                  className={`rounded-lg border px-3 py-2 transition ${
+                    proteinDistribution === "even"
+                      ? "border-teal-400/70 bg-teal-500/10 text-teal-100"
+                      : "border-white/10 bg-black/20 text-gray-200"
+                  }`}
+                >
+                  Равномерно между приёмами
+                </button>
+              </div>
+              <p className="text-[11px] text-gray-400 leading-tight">
+                {proteinDistribution === "even"
+                  ? "Белок делится равномерно между основными приёмами (без десерта), чтобы в каждом было по 25–40 г."
+                  : "Белок распределяется пропорционально калориям в каждом приёме пищи."}
+              </p>
+              <p className="text-[11px] text-gray-500 leading-tight">
+                Порции считаем по шаблонам {PORTION_PRESETS.join(" / ")} ккал: выбираем ближайшую и масштабируем БЖУ.
+              </p>
+            </div>
+          </div>
+
           {dailyRecommendation && (
             <div className="mt-3 rounded-xl bg-black/30 border border-white/10 p-3 space-y-3">
               <div className="flex items-center justify-between text-xs">
@@ -367,6 +537,11 @@ export default function MealsPage() {
                 <span className="text-gray-400">
                   ~{Math.round(dailyRecommendation.totalCalories)} ккал
                 </span>
+              </div>
+
+              <div className="text-[11px] text-gray-500 leading-tight">
+                Пресет: {mealSplitPreset?.label} · Белок: {" "}
+                {proteinDistribution === "even" ? "равномерно между приёмами" : "по процентам калорий"}
               </div>
 
               <div className="grid grid-cols-1 gap-3 text-xs">
