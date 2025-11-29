@@ -17,7 +17,9 @@ import {
   type DiaryEntry,
   type DiaryWorkout,
 } from "../diary-types";
+
 import { WORKOUT_TEMPLATES } from "../../workouts/workouts-data";
+
 
 export interface WorkoutData {
   id?: string;
@@ -46,6 +48,7 @@ export default function AddWorkoutModal({
   onSave,
   readyWorkouts = [],
 }: AddWorkoutModalProps) {
+
   const baseWorkouts = useMemo<WorkoutData[]>(
     () =>
       WORKOUT_TEMPLATES.flatMap((plan) =>
@@ -76,6 +79,7 @@ export default function AddWorkoutModal({
 
   const [availableWorkouts, setAvailableWorkouts] = useState<WorkoutData[]>(() =>
     mergeWorkouts(baseWorkouts, readyWorkouts)
+
   );
   const hasReadyWorkouts = availableWorkouts.length > 0;
 
@@ -116,6 +120,8 @@ export default function AddWorkoutModal({
               workout.planTitle || "",
             ]
               .join(" ")
+
+
               .toLowerCase()
               .includes(searchQuery.toLowerCase());
             const matchesType =
@@ -166,6 +172,7 @@ export default function AddWorkoutModal({
       mergeWorkouts(baseWorkouts, readyWorkouts, prev)
     );
   }, [baseWorkouts, readyWorkouts]);
+
 
   useEffect(() => {
     if (hasReadyWorkouts && tab !== "ready") {
