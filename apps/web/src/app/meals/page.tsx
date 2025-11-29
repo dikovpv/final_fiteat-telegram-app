@@ -109,7 +109,6 @@ export default function MealsPage() {
   const [mealSplitPresetId, setMealSplitPresetId] =
     useState<MealSplitPreset["id"]>(DEFAULT_MEAL_SPLIT_ID);
 
-
   useEffect(() => {
     const state = loadUserPlanState();
     setUserPlan(state);
