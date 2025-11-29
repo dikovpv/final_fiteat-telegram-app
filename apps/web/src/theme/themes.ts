@@ -13,20 +13,20 @@ export interface AppTheme {
 
 export const lightTheme: AppTheme = {
   name: 'light',
-  background: '#F5F7FA',
-  surface: '#FFFFFF',
-  textPrimary: '#111827',
-  textSecondary: '#6B7280',
-  accent: '#6DC47E', // твой зелёный FitEat
+  background: '#f6f3ec',
+  surface: '#ffffff',
+  textPrimary: '#1c1f21',
+  textSecondary: '#4f555d',
+  accent: '#2bd47f',
 };
 
 export const darkTheme: AppTheme = {
   name: 'dark',
-  background: '#020617',
-  surface: '#0F172A',
-  textPrimary: '#F9FAFB',
-  textSecondary: '#9CA3AF',
-  accent: '#6DC47E',
+  background: '#081316',
+  surface: '#0d1d21',
+  textPrimary: '#f3f6f7',
+  textSecondary: '#b5c1c4',
+  accent: '#32d27b',
 };
 
 export const THEMES: Record<ThemeName, AppTheme> = {

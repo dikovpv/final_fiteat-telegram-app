@@ -4,19 +4,19 @@ import { useState, useEffect } from 'react';
 import { Moon, Sun, Palette } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-type Theme = 'cosmic' | 'luxury' | 'system';
+type Theme = 'dark' | 'light' | 'system';
 
 export default function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>('cosmic');
+  const [theme, setTheme] = useState<Theme>('light');
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      const savedTheme = localStorage.getItem('fitEatTheme') as Theme;
-      if (savedTheme) {
-        setTheme(savedTheme);
-        applyTheme(savedTheme);
-      }
+      const stored = localStorage.getItem('fitEatTheme');
+      const savedTheme: Theme = stored === 'dark' || stored === 'system' ? stored : 'light';
+
+      setTheme(savedTheme);
+      applyTheme(savedTheme);
     }
   }, []);
 
@@ -25,18 +25,17 @@ export default function ThemeToggle() {
 
     const root = document.documentElement;
     
-    // Remove all theme classes
-    root.classList.remove('cosmic-theme', 'luxury-theme');
-    
+    root.classList.remove('theme-dark', 'theme-light', 'cosmic-theme', 'luxury-theme');
+
     if (newTheme === 'system') {
       const systemPrefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       if (systemPrefersDark) {
-        root.classList.add('cosmic-theme');
+        root.classList.add('theme-dark');
       } else {
-        root.classList.add('luxury-theme');
+        root.classList.add('theme-light');
       }
     } else {
-      root.classList.add(`${newTheme}-theme`);
+      root.classList.add(`theme-${newTheme}`);
     }
   };
 
@@ -51,16 +50,16 @@ export default function ThemeToggle() {
 
   const themes = [
     {
-      id: 'cosmic' as Theme,
-      name: 'Космическая',
-      icon: <Moon className="w-4 h-4" />,
-      description: 'Темная тема с фиолетовыми акцентами'
+      id: 'light' as Theme,
+      name: 'Светлая',
+      icon: <Sun className="w-4 h-4" />,
+      description: 'Светлый фон, теплые карточки'
     },
     {
-      id: 'luxury' as Theme,
-      name: 'Роскошная',
-      icon: <Sun className="w-4 h-4" />,
-      description: 'Светлая тема с золотыми акцентами'
+      id: 'dark' as Theme,
+      name: 'Тёмная',
+      icon: <Moon className="w-4 h-4" />,
+      description: 'Глубокий фон, мягкие контуры'
     },
     {
       id: 'system' as Theme,
@@ -74,11 +73,11 @@ export default function ThemeToggle() {
     <div className="relative">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="p-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-xl text-white hover:bg-white/20 transition-colors"
+        className="p-2.5 rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-strong)] text-[var(--text-primary)] shadow-[var(--shadow-soft)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-muted)] transition-colors flex items-center justify-center"
       >
-        {theme === 'cosmic' ? <Moon className="w-5 h-5" /> : 
-         theme === 'luxury' ? <Sun className="w-5 h-5" /> : 
-         <Palette className="w-5 h-5" />}
+        {theme === 'dark' ? <Moon className="w-5 h-5" /> :
+         theme === 'light' ? <Sun className="w-5 h-5" /> :
+          <Palette className="w-5 h-5" />}
       </button>
 
       <AnimatePresence>
@@ -88,25 +87,27 @@ export default function ThemeToggle() {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -10 }}
             transition={{ duration: 0.2 }}
-            className="absolute top-full right-0 mt-2 w-72 bg-gray-800 border border-gray-700 rounded-xl shadow-2xl z-50"
+            className="absolute top-full right-0 mt-2 w-72 rounded-2xl border border-[var(--border-strong)] bg-[var(--surface-muted)] shadow-[var(--shadow-strong)] z-50"
           >
             <div className="p-4">
-              <h3 className="text-white font-semibold mb-3">Выберите тему</h3>
+              <h3 className="text-[var(--text-primary)] font-semibold mb-3">Выберите тему</h3>
               <div className="space-y-2">
                 {themes.map((themeOption) => (
                   <button
                     key={themeOption.id}
                     onClick={() => handleThemeChange(themeOption.id)}
-                    className={`w-full p-3 rounded-lg text-left transition-colors flex items-center gap-3 ${
+                    className={`w-full p-3 rounded-xl text-left transition-colors flex items-center gap-3 border ${
                       theme === themeOption.id
-                        ? 'bg-purple-500 text-white'
-                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        ? 'bg-[var(--surface-strong)] border-[var(--border-strong)] text-[var(--text-primary)]'
+                        : 'bg-[var(--surface-muted)] border-[var(--border-soft)] text-[var(--text-secondary)] hover:border-[var(--border-strong)]'
                     }`}
                   >
                     {themeOption.icon}
                     <div>
                       <div className="font-medium">{themeOption.name}</div>
-                      <div className="text-xs opacity-75">{themeOption.description}</div>
+                      <div className="text-xs opacity-80 text-[var(--text-secondary)]">
+                        {themeOption.description}
+                      </div>
                     </div>
                   </button>
                 ))}
