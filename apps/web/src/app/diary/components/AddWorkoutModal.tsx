@@ -121,7 +121,6 @@ export default function AddWorkoutModal({
             ]
               .join(" ")
 
-
               .toLowerCase()
               .includes(searchQuery.toLowerCase());
             const matchesType =
@@ -172,7 +171,6 @@ export default function AddWorkoutModal({
       mergeWorkouts(baseWorkouts, readyWorkouts, prev)
     );
   }, [baseWorkouts, readyWorkouts]);
-
 
   useEffect(() => {
     if (hasReadyWorkouts && tab !== "ready") {

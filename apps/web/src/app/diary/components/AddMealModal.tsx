@@ -60,7 +60,6 @@ export default function AddMealModal({
     mergeMeals(baseMeals, readyMeals)
   );
 
-
   const hasReadyMeals = availableMeals.length > 0;
 
   const [tab, setTab] = useState<"ready" | "favorites" | "added" | "manual">(
@@ -152,7 +151,6 @@ export default function AddMealModal({
   useEffect(() => {
     setAvailableMeals((prev) => mergeMeals(baseMeals, readyMeals, prev));
   }, [baseMeals, readyMeals]);
-
 
   // Если после загрузки появились готовые блюда — переключаем вкладку
   useEffect(() => {
