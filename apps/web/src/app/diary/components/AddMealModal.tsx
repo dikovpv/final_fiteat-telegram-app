@@ -25,6 +25,7 @@ export default function AddMealModal({
   onSave,
   readyMeals = [],
 }: AddMealModalProps) {
+
   const baseMeals = useMemo<MealData[]>(
     () =>
       BASE_MEALS.map((recipe) => {
