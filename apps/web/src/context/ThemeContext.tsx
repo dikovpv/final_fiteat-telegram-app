@@ -19,7 +19,7 @@ type ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 function getInitialTheme(): Theme {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "light";
 
   const saved = window.localStorage.getItem("fitEatTheme");
   if (saved === "dark" || saved === "light") return saved as Theme;
@@ -37,15 +37,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
     const root = document.documentElement;
 
-    // старые классы из themes.css
-    root.classList.remove("cosmic-theme", "luxury-theme");
+    root.classList.remove("theme-dark", "theme-light", "cosmic-theme", "luxury-theme");
 
     if (theme === "dark") {
-      // тёмная тема = космическая
-      root.classList.add("cosmic-theme");
+      root.classList.add("theme-dark");
     } else {
-      // светлая тема = luxury
-      root.classList.add("luxury-theme");
+      root.classList.add("theme-light");
     }
 
     window.localStorage.setItem("fitEatTheme", theme);
