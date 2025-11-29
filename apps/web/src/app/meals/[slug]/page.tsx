@@ -21,6 +21,12 @@ import {
   computeMealNutrition,
 } from "@/lib/meals-data";
 import { INGREDIENTS } from "@/lib/ingredients-data";
+import {
+  DEFAULT_MEAL_SPLIT_ID,
+  MEAL_SPLIT_PRESETS,
+  MEAL_SPLIT_STORAGE_KEY,
+  type MealSplitPreset,
+} from "../meal-presets";
 
 type UserPlan = {
   isPro?: boolean;
@@ -36,14 +42,6 @@ const MEAL_TYPE_LABELS: Record<MealType, string> = {
   dinner: "Ужин",
   snack: "Перекус",
   dessert: "Десерт",
-};
-
-const MEAL_CALORIE_RATIOS: Record<MealType, number> = {
-  breakfast: 0.25,
-  lunch: 0.3,
-  dinner: 0.3,
-  snack: 0.1,
-  dessert: 0.05,
 };
 
 // Локальная дата YYYY-MM-DD
@@ -72,6 +70,29 @@ function loadUserPlanFromLocalStorage(): UserPlan | null {
   }
 }
 
+function clampAndRoundScale(targetCalories: number, baseCalories: number) {
+  if (!baseCalories || !isFinite(targetCalories)) return 1;
+  const raw = targetCalories / baseCalories;
+  const clamped = Math.min(3, Math.max(0.5, raw));
+  return Math.round(clamped * 4) / 4; // шаг 0.25 порции, без экстремальных значений
+}
+
+function roundIngredientAmount(amount: number, unit?: string) {
+  if (!isFinite(amount)) return 0;
+
+  if (unit && unit.includes("шт")) {
+    return Math.max(1, Math.round(amount));
+  }
+
+  const safeAmount = Math.max(amount, 0);
+
+  if (safeAmount < 5) {
+    return Math.max(0.5, Math.round(safeAmount * 2) / 2);
+  }
+
+  return Math.round(safeAmount / 5) * 5;
+}
+
 export default function MealPage({ params }: { params: { slug: string } }) {
   const router = useRouter();
 
@@ -83,10 +104,24 @@ export default function MealPage({ params }: { params: { slug: string } }) {
   const [userPlan, setUserPlan] = useState<UserPlan | null>(null);
   const [portionScale, setPortionScale] = useState<number>(1);
   const [diaryMealType, setDiaryMealType] = useState<MealType>("lunch");
+  const [mealSplitPreset, setMealSplitPreset] =
+    useState<MealSplitPreset | null>(null);
 
   useEffect(() => {
     const plan = loadUserPlanFromLocalStorage();
     setUserPlan(plan);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const saved = window.localStorage.getItem(MEAL_SPLIT_STORAGE_KEY);
+    const presetFromStorage = MEAL_SPLIT_PRESETS.find((p) => p.id === saved);
+    const fallbackPreset =
+      MEAL_SPLIT_PRESETS.find((p) => p.id === DEFAULT_MEAL_SPLIT_ID) ||
+      MEAL_SPLIT_PRESETS[0];
+
+    setMealSplitPreset(presetFromStorage ?? fallbackPreset ?? null);
   }, []);
 
   useEffect(() => {
@@ -121,6 +156,29 @@ export default function MealPage({ params }: { params: { slug: string } }) {
   const baseFat = baseNutrition.perPortionFat;
   const baseCarbs = baseNutrition.perPortionCarbs;
 
+  const targetForMeal = useMemo(() => {
+    if (!userPlan || !mealSplitPreset) return null;
+    const share = mealSplitPreset.ratios[recipe.mealType] ?? 0;
+    if (share <= 0) return null;
+
+    return {
+      calories: Math.round(userPlan.calories * share),
+      protein: Math.round(userPlan.proteinGoal * share),
+      fat: Math.round(userPlan.fatGoal * share),
+      carbs: Math.round(userPlan.carbsGoal * share),
+      share,
+    };
+  }, [mealSplitPreset, recipe.mealType, userPlan]);
+
+  useEffect(() => {
+    if (!targetForMeal || !baseCalories) return;
+    const nextScale = clampAndRoundScale(targetForMeal.calories, baseCalories);
+
+    if (Math.abs(nextScale - portionScale) > 0.01) {
+      setPortionScale(nextScale);
+    }
+  }, [targetForMeal, baseCalories, portionScale]);
+
   // Масштабирование
   const scaledCalories = baseCalories * portionScale;
   const scaledProtein = baseProtein * portionScale;
@@ -130,7 +188,7 @@ export default function MealPage({ params }: { params: { slug: string } }) {
   const scaledIngredients: MealIngredient[] = (recipe.ingredients || []).map(
     (ing: MealIngredient) => ({
       ...ing,
-      amount: parseFloat((ing.amount * portionScale).toFixed(1)),
+      amount: roundIngredientAmount(ing.amount * portionScale, ing.unit),
     })
   );
 
@@ -147,14 +205,11 @@ export default function MealPage({ params }: { params: { slug: string } }) {
       return;
     }
 
-    const ratio =
-      MEAL_CALORIE_RATIOS[recipe.mealType as MealType] ?? 0.25;
-    const targetCalories = userPlan.calories * ratio;
+    const fallbackRatio = 0.25;
+    const targetCalories =
+      targetForMeal?.calories ?? userPlan.calories * fallbackRatio;
 
-    let scale = targetCalories / baseCalories;
-    if (!isFinite(scale) || scale <= 0) scale = 1;
-    scale = Math.max(0.5, Math.min(scale, 2.5));
-
+    const scale = clampAndRoundScale(targetCalories, baseCalories);
     setPortionScale(scale);
   };
 
@@ -322,6 +377,15 @@ export default function MealPage({ params }: { params: { slug: string } }) {
                       Я изменю граммовки так, чтобы калорийность порции была
                       ближе к твоему плану по калориям.
                     </p>
+                    {targetForMeal ? (
+                      <p className="text-[11px] text-teal-200 mt-1">
+                        Цель пресета для {mealLabel.toLowerCase()}: ~{targetForMeal.calories} ккал · Б {targetForMeal.protein}г · Ж {targetForMeal.fat}г · У {targetForMeal.carbs}г. Ингредиенты округлю до целых яиц и шага 5 г.
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-gray-500 mt-1">
+                        Использую базовую порцию, пресет пока не выбран.
+                      </p>
+                    )}
                   </div>
                   <button
                     onClick={handleScaleToPlan}
