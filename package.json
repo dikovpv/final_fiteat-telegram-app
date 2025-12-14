@@ -23,7 +23,8 @@
     "db:down": "docker compose down -v",
     "prisma:generate": "pnpm -C packages/db prisma generate",
     "prisma:migrate": "pnpm -C packages/db prisma migrate dev",
-    "seed": "pnpm -C packages/db ts-node prisma/seed.ts"
+    "seed": "pnpm -C packages/db ts-node prisma/seed.ts",
+    "vercel-build": "pnpm -r --filter @fit-eat/db prisma generate && pnpm -r --filter ./apps/web... build"
   },
   "devDependencies": {
     "prisma": "^5.20.0",
