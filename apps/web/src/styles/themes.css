@@ -1,98 +1,133 @@
 :root {
   color-scheme: light;
-  --background: #f6f3ec;
-  --background-strong: #ebe5da;
+
+  /* светло-серый фон, белые карточки, строгий стиль */
+  --background: #f2f3f7;
+  --background-strong: #f0f1f5;
   --surface: #ffffff;
-  --surface-muted: #f7f3eb;
-  --surface-strong: #eee7dc;
-  --text-primary: #1c1f21;
-  --text-secondary: #4f555d;
-  --text-muted: #737a82;
-  --border-soft: #e6dfd2;
-  --border-strong: #d7cebf;
-  --chip-bg: #f2ebe0;
-  --chart-line: #1c1f21;
-  --accent: #2bd47f;
-  --accent-strong: #18b768;
-  --accent-contrast: #0c1b13;
-  --accent-muted: rgba(43, 212, 127, 0.16);
+  --surface-muted: #f6f7fa;
+  --surface-strong: #e3e6ef;
+
+  --text-primary: #333333;
+  --text-secondary: #555965;
+  --text-muted: #777c88;
+
+  --border-soft: #dde1ea;
+  --border-strong: #c6ccd8;
+  --chip-bg: #eceff5;
+
+  --chart-line: #333333;
+
+  --accent: #333333;
+  --accent-strong: #111111;
+  --accent-gold: #C49F54;
+  --accent-contrast: #ffffff;
+  --accent-muted: rgba(0, 0, 0, 0.04);
+
   --button-primary: var(--accent);
   --button-primary-text: var(--accent-contrast);
-  --shadow-soft: 0 12px 30px rgba(16, 21, 22, 0.06);
-  --shadow-strong: 0 18px 40px rgba(16, 21, 22, 0.1);
+
+  --shadow-soft: 0 6px 16px rgba(0, 0, 0, 0.06);
+  --shadow-strong: 0 10px 24px rgba(0, 0, 0, 0.08);
 }
 
 .theme-light {
   color-scheme: light;
-  --background: #f6f3ec;
-  --background-strong: #ebe5da;
+
+  --background: #f2f3f7;
+  --background-strong: #f0f1f5;
   --surface: #ffffff;
-  --surface-muted: #f7f3eb;
-  --surface-strong: #eee7dc;
-  --text-primary: #1c1f21;
-  --text-secondary: #4f555d;
-  --text-muted: #737a82;
-  --border-soft: #e6dfd2;
-  --border-strong: #d7cebf;
-  --chip-bg: #f2ebe0;
-  --chart-line: #1c1f21;
-  --accent: #2bd47f;
-  --accent-strong: #18b768;
-  --accent-contrast: #0c1b13;
-  --accent-muted: rgba(43, 212, 127, 0.16);
+  --surface-muted: #f6f7fa;
+  --surface-strong: #e3e6ef;
+
+  --text-primary: #333333;
+  --text-secondary: #555965;
+  --text-muted: #777c88;
+
+  --border-soft: #dde1ea;
+  --border-strong: #c6ccd8;
+  --chip-bg: #eceff5;
+
+  --chart-line: #333333;
+
+  --accent: #333333;
+  --accent-strong: #111111;
+  --accent-gold: #C49F54;
+  --accent-contrast: #ffffff;
+  --accent-muted: rgba(0, 0, 0, 0.04);
+
   --button-primary: var(--accent);
   --button-primary-text: var(--accent-contrast);
-  --shadow-soft: 0 12px 30px rgba(16, 21, 22, 0.06);
-  --shadow-strong: 0 18px 40px rgba(16, 21, 22, 0.1);
+
+  --shadow-soft: 0 6px 16px rgba(0, 0, 0, 0.06);
+  --shadow-strong: 0 10px 24px rgba(0, 0, 0, 0.08);
 }
 
+/* тёмную тему оставим, но тоже без «космоса» */
 .theme-dark {
   color-scheme: dark;
-  --background: #081316;
-  --background-strong: #050f12;
-  --surface: #0d1d21;
-  --surface-muted: #0b181c;
-  --surface-strong: #11252a;
-  --text-primary: #f3f6f7;
-  --text-secondary: #b5c1c4;
-  --text-muted: #8d989c;
-  --border-soft: #123038;
-  --border-strong: #19414b;
-  --chip-bg: #122a30;
-  --chart-line: #f3f6f7;
-  --accent: #32d27b;
-  --accent-strong: #1eb868;
-  --accent-contrast: #04130c;
-  --accent-muted: rgba(50, 210, 123, 0.18);
+
+  --background: #090f1a;
+  --background-strong: #070c15;
+  --surface: #101725;
+  --surface-muted: #0c121f;
+  --surface-strong: #161f30;
+
+  --text-primary: #f6f8fb;
+  --text-secondary: #c0c7d6;
+  --text-muted: #9ba4b6;
+
+  --border-soft: #1c2536;
+  --border-strong: #273347;
+  --chip-bg: #151e30;
+
+  --chart-line: #f6f8fb;
+
+  --accent: #f6f8fb;
+  --accent-strong: #ffffff;
+  --accent-gold: #C49F54;
+  --accent-contrast: #070c15;
+  --accent-muted: rgba(255, 255, 255, 0.06);
+
   --button-primary: var(--accent);
   --button-primary-text: var(--accent-contrast);
-  --shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.25);
-  --shadow-strong: 0 18px 42px rgba(0, 0, 0, 0.35);
+
+  --shadow-soft: 0 10px 26px rgba(0, 0, 0, 0.4);
+  --shadow-strong: 0 16px 36px rgba(0, 0, 0, 0.55);
 }
+
+/* ===== базовые элементы ===== */
 
 body {
   background: var(--background);
   color: var(--text-primary);
   min-height: 100vh;
   overflow-x: hidden;
-  transition: background-color 0.35s ease, color 0.35s ease;
+  transition:
+    background-color 0.35s ease,
+    color 0.35s ease;
 }
 
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  transition: background-color 0.35s ease, color 0.35s ease, border-color 0.35s ease,
-    box-shadow 0.35s ease, transform 0.25s ease;
+  transition:
+    background-color 0.35s ease,
+    color 0.35s ease,
+    border-color 0.35s ease,
+    box-shadow 0.35s ease,
+    transform 0.25s ease;
 }
+
+/* карточки – белые и строгие, радиус 8px */
 
 .card,
 .glass-card {
   background: var(--surface);
   border: 1px solid var(--border-soft);
-  border-radius: 18px;
+  border-radius: 8px;
   box-shadow: var(--shadow-soft);
-  backdrop-filter: blur(10px);
 }
 
 .glass-card:hover {
@@ -100,29 +135,35 @@ body {
   box-shadow: var(--shadow-strong);
 }
 
+/* кнопки без градиентов и не космические */
+
 .cosmic-button {
-  background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-  color: var(--accent-contrast);
-  border: 1px solid color-mix(in srgb, var(--accent) 75%, transparent);
-  border-radius: 16px;
-  padding: 12px 18px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-  box-shadow: 0 12px 26px color-mix(in srgb, var(--accent) 26%, transparent);
-  transition: transform 0.18s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  background: var(--button-primary);
+  color: var(--button-primary-text);
+  border-radius: 8px;
+  padding: 10px 16px;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border: 1px solid var(--border-soft);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
 }
 
 .cosmic-button:hover {
   transform: translateY(-1px);
-  filter: brightness(1.02);
-  box-shadow: 0 14px 30px color-mix(in srgb, var(--accent) 30%, transparent);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
 }
 
+.cosmic-button:active {
+  transform: translateY(0);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.14);
+}
+
+/* нижняя навигация — простая плашка */
+
 .cosmic-nav {
-  background: color-mix(in srgb, var(--surface) 92%, var(--background) 8%);
+  background: var(--surface);
   border-top: 1px solid var(--border-soft);
-  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.04);
-  backdrop-filter: blur(12px);
+  box-shadow: 0 -6px 18px rgba(0, 0, 0, 0.06);
 }
 
 .nav-item {
@@ -131,29 +172,28 @@ body {
 
 .nav-item.active {
   color: var(--accent);
-  background: var(--accent-muted);
-  border-color: var(--border-soft);
 }
 
 .nav-item:hover {
   color: var(--text-primary);
-  background: var(--surface-muted);
 }
+
+/* фон: просто однотонный, без сияний */
 
 .cosmic-bg {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  inset: 0;
   z-index: -1;
-  background: radial-gradient(circle at 15% 16%, color-mix(in srgb, var(--accent) 24%, transparent) 0%, transparent 34%),
-    radial-gradient(circle at 85% 12%, color-mix(in srgb, var(--accent) 14%, transparent) 0%, transparent 36%),
-    linear-gradient(180deg, var(--background) 0%, var(--background-strong) 100%);
+  background: var(--background);
 }
 
+/* лёгкий градиент можно оставить для отдельных мест, но он очень мягкий */
 .hero-gradient {
-  background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 10%, transparent) 0%, transparent 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(0, 0, 0, 0.02) 0%,
+    rgba(0, 0, 0, 0.01) 100%
+  );
 }
 
 .stats-grid {
@@ -161,6 +201,8 @@ body {
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 16px;
 }
+
+/* скроллбары можно оставить как есть */
 
 .cosmic-nav::-webkit-scrollbar,
 body::-webkit-scrollbar {
@@ -180,13 +222,12 @@ body::-webkit-scrollbar-thumb {
 
 @media (max-width: 768px) {
   .glass-card {
-    margin: 8px;
     padding: 16px;
   }
 
   .cosmic-button {
-    padding: 11px 16px;
-    font-size: 14px;
-    border-radius: 14px;
+    padding: 9px 14px;
+    font-size: 13px;
+    border-radius: 8px;
   }
 }

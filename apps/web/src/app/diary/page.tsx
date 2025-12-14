@@ -1,37 +1,34 @@
+// apps/web/src/app/diary/page.tsx
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
-  ChevronDown,
-  ChevronUp,
-  CalendarDays,
   UtensilsCrossed,
   Dumbbell,
   Droplets,
   Moon,
-  CheckCircle,
-  Trash2,
-  Plus,
-  TrendingUp,
   Award,
-  Activity,
-  NotebookPen,
   ListTodo,
   BookOpenText,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
+import PageHeader from "../components/PageHeader";
+
 import AddMealModal from "./components/AddMealModal";
 import AddWorkoutModal from "./components/AddWorkoutModal";
-import AddChecklistModal from "./components/AddChecklistModal";
+import AddChecklistModal, {
+  type ChecklistFormData,
+} from "./components/AddChecklistModal";
+
 import WaterTracker from "./components/WaterTracker";
 import SleepTracker from "./components/SleepTracker";
+
 import {
   meals as MEAL_RECIPES,
-  computeMealNutrition,
-} from "../meals/meals-data";
+} from "../meals/meal-data";
+import { getMealPortionForUser } from "../meals/meal-scale";
 import { WORKOUT_TEMPLATES } from "../workouts/workouts-data";
 
 import {
@@ -44,52 +41,126 @@ import {
   type ChecklistItem,
 } from "./diary-types";
 
-// ===== Страница дневника =====
+import ProgressRing from "./components/ProgressRing";
+import SectionHeader from "./components/SectionHeader";
+import MealCard from "./components/MealCard";
+import WorkoutCard from "./components/WorkoutCard";
+import ChecklistCard, {
+  type ChecklistItemExt,
+} from "./components/ChecklistCard";
+import AchievementCard from "./components/AchievementCard";
+import CopyFromDateModal from "./components/CopyFromDateModal";
+import TrainingSection from "./components/TrainingSection";
+import ChecklistSection from "./components/ChecklistSection";
+
+
+
+// ======================================================================
+// ВСПОМОГАТЕЛЬНЫЕ ТИПЫ И КОНСТАНТЫ
+// ======================================================================
+
+const CHECKLIST_TEMPLATES_KEY = "fitEatChecklistTemplates";
+
+export type ChecklistRepeatMode = "once" | "weekly";
+
+export type ChecklistTemplate = {
+  id: string;
+  title: string;
+  repeatMode: ChecklistRepeatMode;
+  weekdays?: number[];
+};
+
+
+// ======================================================================
+// СТРАНИЦА ДНЕВНИКА
+// ======================================================================
 
 export default function DiaryPage() {
-  const todayISO = new Date().toISOString().split("T")[0];
+  // "Сегодня" фиксируется при монтировании
+  const [todayISO] = useState(() => new Date().toISOString().split("T")[0]);
 
-  const [selectedDate, setSelectedDate] = useState<string>(() => {
-    if (typeof window === "undefined") return todayISO;
+  // выбранная дата
+  const [selectedDate, setSelectedDate] = useState<string>(todayISO);
 
-    try {
-      const stored = localStorage.getItem(DIARY_SELECTED_DATE_KEY);
-      return stored || todayISO;
-    } catch {
-      return todayISO;
-    }
-  });
-
+  // какая секция открыта
   const [openSection, setOpenSection] = useState<string | null>("nutrition");
 
+  // модалки
   const [showMealModal, setShowMealModal] = useState(false);
   const [showWorkoutModal, setShowWorkoutModal] = useState(false);
   const [showChecklistModal, setShowChecklistModal] = useState(false);
 
+  
+  // ----- копирование питания -----
+const [showCopyMealsModal, setShowCopyMealsModal] = useState(false);
+const [copyMealsDate, setCopyMealsDate] = useState<string>(selectedDate);
+const [copyMealsError, setCopyMealsError] = useState<string | null>(null);
+
+// ----- копирование тренировок -----
+const [showCopyWorkoutsModal, setShowCopyWorkoutsModal] = useState(false);
+const [copyWorkoutsDate, setCopyWorkoutsDate] = useState<string>(selectedDate);
+const [copyWorkoutsError, setCopyWorkoutsError] = useState<string | null>(null);
+
+  // синхронизируем дефолтное значение в модалках с выбранной датой
+  useEffect(() => {
+    setCopyMealsDate(selectedDate);
+    setCopyWorkoutsDate(selectedDate);
+  }, [selectedDate]);
+
   const [diaryData, setDiaryData] = useState<DiaryEntry | null>(DEFAULT_ENTRY);
   const [isLoaded, setIsLoaded] = useState(false);
 
-  // готовые списки рецептов и упражнений для быстрого добавления из модалок
+  // шаблоны повторяющихся задач чек-листа (общие, не привязаны к дате)
+  const [checklistTemplates, setChecklistTemplates] = useState<
+    ChecklistTemplate[]
+  >(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      const raw = localStorage.getItem(CHECKLIST_TEMPLATES_KEY);
+      return raw ? (JSON.parse(raw) as ChecklistTemplate[]) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const saveChecklistTemplates = (data: ChecklistTemplate[]) => {
+    setChecklistTemplates(data);
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.setItem(CHECKLIST_TEMPLATES_KEY, JSON.stringify(data));
+    } catch {
+      // ignore
+    }
+  };
+
+  // готовые рецепты
   const readyMeals = useMemo<DiaryMeal[]>(
-    () =>
-      MEAL_RECIPES.map((recipe) => {
-        const nutrition = computeMealNutrition(recipe);
+  () =>
+    MEAL_RECIPES.map((recipe) => {
+      // здесь уже учитывается:
+      // - дневная норма калорий
+      // - выбранный стиль деления (classic / heavy_lunch / even)
+      // - тип приёма пищи (breakfast/lunch/...)
+      const nutrition = getMealPortionForUser(recipe);
 
-        return {
-          id: recipe.slug,
-          slug: recipe.slug,
-          title: recipe.title,
-          calories: Math.round(nutrition.perPortionCalories),
-          protein: Math.round(nutrition.perPortionProtein),
-          fat: Math.round(nutrition.perPortionFat),
-          carbs: Math.round(nutrition.perPortionCarbs),
-          type: recipe.mealType,
-          category: recipe.mealType,
-        } satisfies DiaryMeal;
-      }),
-    []
-  );
+      return {
+        id: recipe.slug,
+        slug: recipe.slug,
+        title: recipe.title,
+        calories: Math.round(nutrition.perPortionCalories),
+        protein: Math.round(nutrition.perPortionProtein),
+        fat: Math.round(nutrition.perPortionFat),
+        carbs: Math.round(nutrition.perPortionCarbs),
+        type: recipe.mealType,
+        done: false,
+      } satisfies DiaryMeal;
+    }),
+  [],
+);
 
+
+  
+  // готовые упражнения
   const readyWorkouts = useMemo<Workout[]>(
     () =>
       WORKOUT_TEMPLATES.flatMap((plan) =>
@@ -101,8 +172,8 @@ export default function DiaryPage() {
           type: exercise.type,
           planSlug: plan.slug,
           exerciseSlug: exercise.slug,
-          // чтобы в списке было видно, из какого плана упражнение
           planTitle: plan.title,
+          done: false,
         }))
       ),
     []
@@ -115,21 +186,6 @@ export default function DiaryPage() {
     fat: 80,
     carbs: 300,
   });
-
-  // при первом рендере пробуем восстановить последнюю выбранную дату
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = localStorage.getItem(DIARY_SELECTED_DATE_KEY);
-    if (stored) {
-      setSelectedDate(stored);
-    }
-  }, []);
-
-  // сохраняем текущую выбранную дату для рецептов/тренировок
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    localStorage.setItem(DIARY_SELECTED_DATE_KEY, selectedDate);
-  }, [selectedDate]);
 
   // загрузка дневника по дате
   useEffect(() => {
@@ -198,6 +254,7 @@ export default function DiaryPage() {
     checklist: Array.isArray(rawEntry.checklist) ? rawEntry.checklist : [],
   };
 
+  // наборы для модалок
   const mealsForModal = useMemo(() => {
     const map = new Map<string, DiaryMeal>();
 
@@ -220,7 +277,61 @@ export default function DiaryPage() {
     return Array.from(map.values());
   }, [entry.workouts, readyWorkouts]);
 
-  // подсчёт БЖУ за день
+  // ====================================================================
+  // ЧЕК-ЛИСТ: ДЕРИВАЦИЯ ЗАДАЧ ИЗ ШАБЛОНОВ + ОДНОРАЗОВЫЕ
+  // ====================================================================
+
+  const weekdayIndex = useMemo(() => {
+    try {
+      return new Date(selectedDate).getDay(); // 0..6
+    } catch {
+      return new Date().getDay();
+    }
+  }, [selectedDate]);
+
+  const storedChecklist = (entry.checklist as ChecklistItemExt[]) ?? [];
+
+  // задачи из шаблонов, актуальные для выбранного дня
+  const recurringChecklistForDay: ChecklistItemExt[] = useMemo(
+    () =>
+      checklistTemplates
+        .filter(
+          (tpl) =>
+            tpl.repeatMode === "weekly" &&
+            tpl.weekdays &&
+            tpl.weekdays.includes(weekdayIndex)
+        )
+        .map((tpl) => {
+          const state = storedChecklist.find(
+            (it) => it.templateId === tpl.id
+          );
+
+          return {
+            id: tpl.id,
+            title: tpl.title,
+            done: state?.done ?? false,
+            repeatMode: "weekly",
+            daysOfWeek: tpl.weekdays,
+            templateId: tpl.id,
+          } as ChecklistItemExt;
+        }),
+    [checklistTemplates, storedChecklist, weekdayIndex]
+  );
+
+  // одноразовые задачи
+  const oneTimeChecklist: ChecklistItemExt[] = storedChecklist.filter(
+    (it) => !it.templateId
+  );
+
+  const checklistForUI: ChecklistItemExt[] = [
+    ...recurringChecklistForDay,
+    ...oneTimeChecklist,
+  ];
+
+  // ====================================================================
+  // ПОДСЧЁТ ПРОГРЕССОВ
+  // ====================================================================
+
   const totals = entry.meals.reduce(
     (acc, m) => {
       acc.calories += m.calories || 0;
@@ -232,7 +343,6 @@ export default function DiaryPage() {
     { calories: 0, protein: 0, fat: 0, carbs: 0 }
   );
 
-  // прогресс (общая функция)
   const getProgress = (current: number, goal: number) =>
     goal > 0 ? Math.min((current / goal) * 100, 100) : 0;
 
@@ -245,22 +355,46 @@ export default function DiaryPage() {
       100
     : 0;
 
-  const waterProgress = getProgress(entry.water, 2.5);
+  const WATER_GOAL = 2;
+  const waterProgress = getProgress(entry.water, WATER_GOAL);
 
+  // прогресс сна (8 часов = 100%)
   const sleepProgress = (() => {
-    const { start, end } = entry.sleep;
-    if (!start || !end) return 0;
-    const [sh, sm] = start.split(":").map(Number);
-    const [eh, em] = end.split(":").map(Number);
-    let dur = eh * 60 + em - (sh * 60 + sm);
-    if (dur < 0) dur += 1440;
-    return Math.min((dur / 480) * 100, 100); // 8 часов = 100%
+    const sleep = entry.sleep || ({} as any);
+    const { start, end, durationHours } = sleep as {
+      start?: string | null;
+      end?: string | null;
+      durationHours?: number;
+    };
+
+    let durationMinutes: number | null = null;
+
+    if (start && end) {
+      const [sh, sm] = start.split(":").map(Number);
+      const [eh, em] = end.split(":").map(Number);
+      let dur = eh * 60 + em - (sh * 60 + sm);
+      if (dur < 0) dur += 1440; // переход через полночь
+      if (dur > 0) {
+        durationMinutes = dur;
+      }
+    }
+
+    if (durationMinutes == null && typeof durationHours === "number") {
+      const hrs = Math.max(0, durationHours);
+      if (hrs > 0) {
+        durationMinutes = hrs * 60;
+      }
+    }
+
+    if (!durationMinutes) return 0;
+
+    return Math.min((durationMinutes / 480) * 100, 100);
   })();
 
   const checklistProgress =
-    entry.checklist.length > 0
-      ? (entry.checklist.filter((t) => t.done).length /
-          entry.checklist.length) *
+    checklistForUI.length > 0
+      ? (checklistForUI.filter((t) => t.done).length /
+          checklistForUI.length) *
         100
       : 0;
 
@@ -269,38 +403,51 @@ export default function DiaryPage() {
     weekday: "long",
   });
 
-  // статистика дня
-  const dayStats = {
-    mealsCount: entry.meals.length,
-    completedMeals: entry.meals.filter((m) => m.done).length,
-    workoutsCount: entry.workouts.length,
-    completedWorkouts: entry.workouts.filter((w) => w.done).length,
-    waterGlasses: Math.floor(entry.water / 0.25),
-    sleepHours: (() => {
-      const { start, end } = entry.sleep;
-      if (!start || !end) return 0;
-      const [sh, sm] = start.split(":").map(Number);
-      const [eh, em] = end.split(":").map(Number);
-      let dur = eh * 60 + em - (sh * 60 + sm);
-      if (dur < 0) dur += 1440;
-      return Math.round(dur / 60);
-    })(),
-  };
+  // смещение выбранной даты относительно сегодняшней
+  const selectedDiffFromToday = (() => {
+    try {
+      const today = new Date(todayISO);
+      const current = new Date(selectedDate);
+      const msPerDay = 24 * 60 * 60 * 1000;
+      return Math.round((current.getTime() - today.getTime()) / msPerDay);
+    } catch {
+      return NaN;
+    }
+  })();
+
+  const isYesterdaySelected = selectedDiffFromToday === -1;
+  const isTodaySelected = selectedDiffFromToday === 0;
+  const isTomorrowSelected = selectedDiffFromToday === 1;
 
   // ===== быстрые переключатели дат =====
-
-  const goToRelativeDay = (offset: number) => {
-    const base = selectedDate ? new Date(selectedDate) : new Date(todayISO);
-    base.setDate(base.getDate() + offset);
-    const newISO = base.toISOString().split("T")[0];
-    setSelectedDate(newISO);
+  const setDateAndRemember = (iso: string) => {
+    setSelectedDate(iso);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(DIARY_SELECTED_DATE_KEY, iso);
+      } catch {
+        // ignore
+      }
+    }
   };
 
-  const goToToday = () => {
-    setSelectedDate(todayISO);
+  const goToYesterday = () => {
+    const base = new Date(todayISO);
+    base.setDate(base.getDate() - 1);
+    setDateAndRemember(base.toISOString().split("T")[0]);
   };
 
-  // ===== работа с едой / тренировками / чек-листом =====
+  const goToToday = () => setDateAndRemember(todayISO);
+
+  const goToTomorrow = () => {
+    const base = new Date(todayISO);
+    base.setDate(base.getDate() + 1);
+    setDateAndRemember(base.toISOString().split("T")[0]);
+  };
+
+  // ====================================================================
+  // ОПЕРАЦИИ С ЕДОЙ / ТРЕНИРОВКАМИ / ЧЕК-ЛИСТОМ
+  // ====================================================================
 
   const toggleMealDone = (id: string) =>
     setDiaryData((prev) => {
@@ -322,6 +469,87 @@ export default function DiaryPage() {
       };
     });
 
+    // копирование питания с другой даты (из модалки)
+const handleCopyMealsConfirm = () => {
+  if (!copyMealsDate) {
+    setCopyMealsError("Выберите дату");
+    return;
+  }
+
+  // чтобы не копировать саму же дату в себя
+  if (copyMealsDate === selectedDate) {
+    setCopyMealsError("Нельзя копировать в ту же самую дату");
+    return;
+  }
+
+  try {
+    const key = `${DIARY_STORAGE_PREFIX}${copyMealsDate}`;
+    const saved = localStorage.getItem(key);
+
+    if (!saved) {
+      setCopyMealsError("Нет данных за выбранную дату");
+      return;
+    }
+
+    const data: DiaryEntry = JSON.parse(saved);
+
+    setDiaryData(prev => {
+      const base = prev ?? DEFAULT_ENTRY;
+      return {
+        ...base,
+        meals: data.meals ?? [],
+      };
+    });
+
+    // закрываем модалку и чистим ошибку
+    setShowCopyMealsModal(false);
+    setCopyMealsError(null);
+  } catch (e) {
+    console.error("Ошибка при копировании питания:", e);
+    setCopyMealsError("Ошибка чтения данных. Попробуйте другую дату.");
+  }
+};
+
+// копирование тренировок с другой даты (из модалки)
+const handleCopyWorkoutsConfirm = () => {
+  if (!copyWorkoutsDate) {
+    setCopyWorkoutsError("Выберите дату");
+    return;
+  }
+
+  if (copyWorkoutsDate === selectedDate) {
+    setCopyWorkoutsError("Нельзя копировать в ту же самую дату");
+    return;
+  }
+
+  try {
+    const key = `${DIARY_STORAGE_PREFIX}${copyWorkoutsDate}`;
+    const saved = localStorage.getItem(key);
+
+    if (!saved) {
+      setCopyWorkoutsError("Нет данных за выбранную дату");
+      return;
+    }
+
+    const data: DiaryEntry = JSON.parse(saved);
+
+    setDiaryData(prev => {
+      const base = prev ?? DEFAULT_ENTRY;
+      return {
+        ...base,
+        workouts: data.workouts ?? [],
+        isRestDay: data.isRestDay ?? false,
+      };
+    });
+
+    setShowCopyWorkoutsModal(false);
+    setCopyWorkoutsError(null);
+  } catch (e) {
+    console.error("Ошибка при копировании тренировок:", e);
+    setCopyWorkoutsError("Ошибка чтения данных. Попробуйте другую дату.");
+  }
+};
+
   const toggleWorkoutDone = (id: string) =>
     setDiaryData((prev) => {
       const base = prev ?? DEFAULT_ENTRY;
@@ -342,37 +570,74 @@ export default function DiaryPage() {
       };
     });
 
-  const toggleChecklistItem = (id: string) =>
-    setDiaryData((prev) => {
+  const updateWorkoutWeight = (id: string, weight?: number) =>
+    setDiaryData(prev => {
       const base = prev ?? DEFAULT_ENTRY;
       return {
         ...base,
-        checklist: (base.checklist || []).map((item) =>
-          item.id === id ? { ...item, done: !item.done } : item
+        workouts: base.workouts.map(w =>
+          w.id === id ? { ...w, weight } : w
         ),
       };
     });
 
-  const deleteChecklistItem = (id: string) =>
+
+  const toggleChecklistItem = (item: ChecklistItemExt) =>
     setDiaryData((prev) => {
       const base = prev ?? DEFAULT_ENTRY;
-      return {
-        ...base,
-        checklist: (base.checklist || []).filter((item) => item.id !== id),
-      };
+      const list = (base.checklist as ChecklistItemExt[]) ?? [];
+
+      // задача из шаблона
+      if (item.templateId) {
+        const idx = list.findIndex((i) => i.templateId === item.templateId);
+        if (idx === -1) {
+          const newItem: ChecklistItemExt = {
+            id: `tpl_${item.templateId}`,
+            title: item.title,
+            done: true,
+            repeatMode: "weekly",
+            daysOfWeek: item.daysOfWeek,
+            templateId: item.templateId,
+          };
+          return { ...base, checklist: [...list, newItem] };
+        } else {
+          const updated = [...list];
+          updated[idx] = { ...updated[idx], done: !updated[idx].done };
+          return { ...base, checklist: updated };
+        }
+      }
+
+      // обычная задача
+      const updated = list.map((i) =>
+        i.id === item.id ? { ...i, done: !i.done } : i
+      );
+      return { ...base, checklist: updated };
     });
 
-  // копирование питания с другой даты
-  const copyMealsFromOtherDay = () => {
-    const source = window.prompt(
-      "Введите дату, откуда скопировать питание (ГГГГ-ММ-ДД):",
-      selectedDate
-    );
-    if (!source) return;
+  const deleteChecklistItem = (item: ChecklistItemExt) =>
+    setDiaryData((prev) => {
+      const base = prev ?? DEFAULT_ENTRY;
+      const list = (base.checklist as ChecklistItemExt[]) ?? [];
+
+      if (item.templateId) {
+        // удаляем только состояние на этот день (шаблон остаётся)
+        const updated = list.filter((i) => i.templateId !== item.templateId);
+        return { ...base, checklist: updated };
+      }
+
+      const updated = list.filter((i) => i.id !== item.id);
+      return { ...base, checklist: updated };
+    });
+
+  // копирование питания/тренировок из другой даты (через модалки)
+
+  const applyMealsCopyFromDate = (source: string) => {
+    if (!source || typeof window === "undefined") return;
+
     const key = `${DIARY_STORAGE_PREFIX}${source}`;
     const saved = localStorage.getItem(key);
     if (!saved) {
-      alert("Нет данных за эту дату");
+      setCopyMealsError("Нет данных по питанию за эту дату");
       return;
     }
     try {
@@ -384,22 +649,20 @@ export default function DiaryPage() {
           meals: data.meals ?? [],
         };
       });
+      setShowCopyMealsModal(false);
+      setCopyMealsError(null);
     } catch {
-      alert("Ошибка чтения данных за выбранную дату");
+      setCopyMealsError("Ошибка чтения данных за выбранную дату");
     }
   };
 
-  // копирование тренировок с другой даты
-  const copyWorkoutsFromOtherDay = () => {
-    const source = window.prompt(
-      "Введите дату, откуда скопировать тренировки (ГГГГ-ММ-ДД):",
-      selectedDate
-    );
-    if (!source) return;
+  const applyWorkoutsCopyFromDate = (source: string) => {
+    if (!source || typeof window === "undefined") return;
+
     const key = `${DIARY_STORAGE_PREFIX}${source}`;
     const saved = localStorage.getItem(key);
     if (!saved) {
-      alert("Нет данных за эту дату");
+      setCopyWorkoutsError("Нет тренировок за эту дату");
       return;
     }
     try {
@@ -412,185 +675,192 @@ export default function DiaryPage() {
           isRestDay: data.isRestDay ?? false,
         };
       });
+      setShowCopyWorkoutsModal(false);
+      setCopyWorkoutsError(null);
     } catch {
-      alert("Ошибка чтения данных за выбранную дату");
+      setCopyWorkoutsError("Ошибка чтения данных за выбранную дату");
     }
   };
 
   // сохранение задачи из модалки чек-листа
-  const handleChecklistSave = (data: any) => {
-    const title = String(data?.title || "").trim();
+  const handleChecklistSave = (data: ChecklistFormData) => {
+    const title = data.title.trim();
     if (!title) return;
 
-    const repeatMode =
-      (data.repeatMode || data.repeatType || "once") as "once" | "weekly";
-    const daysOfWeek: number[] | undefined =
-      data.daysOfWeek || data.selectedDays;
+    const anyData = data as any;
+    const weekdays: number[] =
+      anyData.weekdays ?? anyData.daysOfWeek ?? anyData.selectedDays ?? [];
 
-    const newItem: ChecklistItem = {
+    if (data.repeatMode === "weekly" && weekdays.length > 0) {
+      const template: ChecklistTemplate = {
+        id: `tpl_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+        title,
+        repeatMode: "weekly",
+        weekdays,
+      };
+
+      // сохраняем шаблон
+      saveChecklistTemplates([...checklistTemplates, template]);
+
+      // если выбранный день входит в список — добавляем экземпляр
+      if (weekdays.includes(weekdayIndex)) {
+        setDiaryData((prev) => {
+          const base = prev ?? DEFAULT_ENTRY;
+          const list = (base.checklist as ChecklistItemExt[]) ?? [];
+
+          const exists = list.some((i) => i.templateId === template.id);
+          if (exists) return base;
+
+          const newItem: ChecklistItemExt = {
+            id: `tpl_${template.id}`,
+            title: template.title,
+            done: false,
+            repeatMode: "weekly",
+            daysOfWeek: template.weekdays,
+            templateId: template.id,
+          };
+
+          return { ...base, checklist: [...list, newItem] };
+        });
+      }
+
+      setShowChecklistModal(false);
+      return;
+    }
+
+    // одноразовая задача
+    const newItem: ChecklistItemExt = {
       id: `${Date.now()}_${Math.random().toString(16).slice(2)}`,
       title,
       done: false,
-      repeatMode,
-      daysOfWeek,
+      repeatMode: "once",
     };
 
     setDiaryData((prev) => {
       const base = prev ?? DEFAULT_ENTRY;
-      return {
-        ...base,
-        checklist: [...(base.checklist || []), newItem],
-      };
+      const list = (base.checklist as ChecklistItemExt[]) ?? [];
+      return { ...base, checklist: [...list, newItem] };
     });
 
     setShowChecklistModal(false);
   };
 
+  // ====================================================================
+  // RENDER
+  // ====================================================================
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#0a0a0f] via-[#1a0b2e] to-[#2d1b69] text-[#f0f0f5] pb-24">
+    <div className="min-h-screen bg-[var(--bg)] text-[var(--text-primary)] pb-24 relative">
       <div className="cosmic-bg" />
 
-      {/* заголовок с датой */}
+      <PageHeader
+        title="Дневник"
+        rightSlot={
+          <p className="capitalize text-sm font-medium text-white/90">
+            {weekday}
+          </p>
+        }
+      />
+
+      {/* Карточка с датой и быстрыми кнопками — закреплена под шапкой */}
       <motion.div
-        className="glass-card p-4 mb-6 sticky top-0 z-20"
-        initial={{ opacity: 0, y: -20 }}
+        className="glass-card p-4 mb-6 max-w-5xl mx-auto mt-4 sticky top-[72px] z-30"
+        initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <h1 className="text-2xl font-bold neon-text-teal flex items-center gap-2 mb-4">
-          <NotebookPen className="w-6 h-6" />
-          Дневник
-        </h1>
-
         <div className="flex items-center justify-between gap-4 flex-wrap sm:flex-nowrap">
           <div className="flex items-center gap-3">
-            <CalendarDays className="w-5 h-5 text-teal-400" />
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => {
                 const newDate = e.target.value;
-                setSelectedDate(newDate);
-
-                if (typeof window !== "undefined") {
-                  try {
-                    localStorage.setItem(DIARY_SELECTED_DATE_KEY, newDate);
-                  } catch (err) {
-                    console.error(
-                      "Не удалось сохранить выбранную дату:",
-                      err
-                    );
-                  }
-                }
+                setDateAndRemember(newDate);
               }}
-              className="bg-black/30 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-teal-400 focus:outline-none"
+              className="bg-[var(--surface)] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-[var(--text-primary)] text-sm focus:border-[var(--accent)] focus:outline-none"
             />
           </div>
 
-          {/* быстрые кнопки навигации по дням */}
           <div className="flex items-center gap-2 text-xs">
             <button
-              onClick={() => goToRelativeDay(-1)}
-              className="px-3 py-1.5 rounded-full bg-black/30 border border-gray-600 text-gray-200 hover:border-teal-400 hover:text-teal-200 transition"
+              onClick={goToYesterday}
+              className={`px-3 py-1.5 rounded-full border text-[var(--text-secondary)] transition ${
+                isYesterdaySelected
+                  ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent-strong)]"
+                  : "bg-[var(--surface)] border-[var(--border-soft)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+              }`}
             >
               Вчера
             </button>
+
             <button
               onClick={goToToday}
-              className={`px-3 py-1.5 rounded-full border text-gray-200 transition ${
-                selectedDate === todayISO
-                  ? "bg-teal-500/20 border-teal-400 text-teal-200"
-                  : "bg-black/30 border-gray-600 hover:border-teal-400 hover:text-teal-200"
+              className={`px-3 py-1.5 rounded-full border text-[var(--text-secondary)] transition ${
+                isTodaySelected
+                  ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent-strong)]"
+                  : "bg-[var(--surface)] border-[var(--border-soft)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
               }`}
             >
               Сегодня
             </button>
+
             <button
-              onClick={() => goToRelativeDay(1)}
-              className="px-3 py-1.5 rounded-full bg-black/30 border border-gray-600 text-gray-200 hover:border-teal-400 hover:text-teal-200 transition"
+              onClick={goToTomorrow}
+              className={`px-3 py-1.5 rounded-full border text-[var(--text-secondary)] transition ${
+                isTomorrowSelected
+                  ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent-strong)]"
+                  : "bg-[var(--surface)] border-[var(--border-soft)] hover:border-[var(--accent)] hover:text-[var(--accent)]"
+              }`}
             >
               Завтра
             </button>
           </div>
-
-          <p className="capitalize text-gray-300 font-medium min-w-[80px] text-right">
-            {weekday}
-          </p>
         </div>
       </motion.div>
 
-      {/* прогресс + статистика дня в одном блоке */}
+      {/* Прогресс дня */}
       <motion.div
         className="glass-card p-4 mx-4 mb-6"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1 }}
       >
-        {/* индикаторы прогресса дня */}
-        <div className="mb-4">
-          <div className="grid grid-cols-4 gap-3">
-            <ProgressRing
-              icon={<UtensilsCrossed />}
-              progress={nutritionProgress}
-              color="#00d4aa"
-              label="Питание"
-            />
-            <ProgressRing
-              icon={<Dumbbell />}
-              progress={workoutProgress}
-              color="#39ff14"
-              label={entry.isRestDay ? "Отдых" : "Тренировки"}
-            />
-            <ProgressRing
-              icon={<Droplets />}
-              progress={waterProgress}
-              color="#00f3ff"
-              label="Вода"
-            />
-            <ProgressRing
-              icon={<Moon />}
-              progress={sleepProgress}
-              color="#8b5cf6"
-              label="Сон"
-            />
-          </div>
+        <div className="mb-1 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+            Прогресс дня
+          </h2>
         </div>
 
-        {/* статистика дня */}
-        {/*<h2 className="text-lg font-semibold mb-4 text-gray-300 flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-purple-400" />
-          Статистика дян
-         </h2>
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-black/20 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold text-teal-400">
-              {dayStats.completedMeals}/{dayStats.mealsCount}
-            </div>
-            <div className="text-sm text-gray-400">приемов пищи</div>
-          </div>
-          <div className="bg-black/20 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold text-green-400">
-              {dayStats.completedWorkouts}/{dayStats.workoutsCount}
-            </div>
-            <div className="text-sm text-gray-400">упражнений</div>
-          </div>
-          <div className="bg-black/20 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold text-blue-400">
-              {dayStats.waterGlasses}
-            </div>
-            <div className="text-sm text-gray-400">стаканов воды</div>
-          </div>
-          <div className="bg-black/20 rounded-lg p-3 text-center">
-            <div className="text-2xl font-bold text-purple-400">
-              {dayStats.sleepHours}ч
-            </div>
-            <div className="text-sm text-gray-400">сна</div>
-          </div>
-        </div> */}
+        <div className="grid grid-cols-4 gap-3">
+          <ProgressRing
+            icon={<UtensilsCrossed className="w-4 h-4" />}
+            progress={nutritionProgress}
+            color="var(--accent)"
+            label="Питание"
+          />
+          <ProgressRing
+            icon={<Dumbbell className="w-4 h-4" />}
+            progress={workoutProgress}
+            color="var(--success)"
+            label={entry.isRestDay ? "Отдых" : "Тренировки"}
+          />
+          <ProgressRing
+            icon={<Droplets className="w-4 h-4" />}
+            progress={waterProgress}
+            color="var(--info)"
+            label="Вода"
+          />
+          <ProgressRing
+            icon={<Moon className="w-4 h-4" />}
+            progress={sleepProgress}
+            color="var(--purple)"
+            label="Сон"
+          />
+        </div>
       </motion.div>
 
-      {/* основной контент */}
-      <div className="px-4 space-y-4">
+      {/* Основной контент */}
+      <div className="px-4 space-y-4 max-w-3xl mx-auto">
         {/* Питание */}
         <motion.div
           className="glass-card p-4"
@@ -600,7 +870,7 @@ export default function DiaryPage() {
         >
           <SectionHeader
             title="Питание"
-            icon={<UtensilsCrossed className="w-5 h-5 text-teal-400" />}
+            icon={<UtensilsCrossed className="w-5 h-5 text-[var(--accent)]" />}
             isOpen={openSection === "nutrition"}
             onToggle={() => toggleSection("nutrition")}
             progress={nutritionProgress}
@@ -617,12 +887,12 @@ export default function DiaryPage() {
               >
                 {/* ссылка на книгу рецептов */}
                 <div className="mb-3 flex items-center justify-between gap-2 text-xs">
-                  <span className="text-gray-400">
+                  <span className="text-[var(--text-secondary)]">
                     Можно выбирать блюда не только по КБЖУ, но и по рецептам.
                   </span>
                   <Link
                     href="/meals"
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-500/10 border border-emerald-400/60 text-emerald-100 hover:bg-emerald-500/20 transition"
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-[var(--accent-soft)] border border-[var(--accent)] text-[var(--accent-strong)] hover:bg-[var(--accent)] hover:text-white transition"
                   >
                     <BookOpenText className="w-3 h-3" />
                     <span>Книга рецептов</span>
@@ -630,43 +900,46 @@ export default function DiaryPage() {
                 </div>
 
                 {/* прогресс БЖУ */}
-                <div className="mb-3 p-3 bg-black/20 rounded-lg">
-                  <h3 className="font-semibold mb-2 text-gray-300">
+                <div className="mb-3 p-3 rounded-lg bg-[var(--surface-muted)] border border-[var(--border-soft)]">
+                  <h3 className="font-semibold mb-2 text-sm text-[var(--text-primary)]">
                     БЖУ на сегодня
                   </h3>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Калории:</span>
-                      <span className="font-semibold text-teal-400">
-                        {totals.calories}/{goals.calories}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Белки:</span>
-                      <span className="font-semibold text-green-400">
-                        {totals.protein}/{goals.protein}г
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Жиры:</span>
-                      <span className="font-semibold text-blue-400">
-                        {totals.fat}/{goals.fat}г
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Углеводы:</span>
-                      <span className="font-semibold text-orange-400">
-                        {totals.carbs}/{goals.carbs}г
-                      </span>
-                    </div>
+                    <BjuRow
+                      label="Калории"
+                      value={totals.calories}
+                      goal={goals.calories}
+                    />
+                    <BjuRow
+                      label="Белки"
+                      value={totals.protein}
+                      goal={goals.protein}
+                      unit="г"
+                    />
+                    <BjuRow
+                      label="Жиры"
+                      value={totals.fat}
+                      goal={goals.fat}
+                      unit="г"
+                    />
+                    <BjuRow
+                      label="Углеводы"
+                      value={totals.carbs}
+                      goal={goals.carbs}
+                      unit="г"
+                    />
                   </div>
                 </div>
 
-                {/* кнопка копирования питания */}
+                {/* копирование питания */}
                 <div className="flex justify-end mb-3">
                   <button
-                    onClick={copyMealsFromOtherDay}
-                    className="text-xs text-teal-300 hover:text-teal-200 underline underline-offset-4"
+                    onClick={() => {
+                      setCopyMealsDate(selectedDate);
+                      setCopyMealsError(null);
+                      setShowCopyMealsModal(true);
+                    }}
+                    className="text-xs text-[var(--accent)] hover:text-[var(--accent-strong)] underline underline-offset-4"
                   >
                     Скопировать питание с другой даты
                   </button>
@@ -675,13 +948,15 @@ export default function DiaryPage() {
                 {/* список блюд */}
                 {entry.meals.length === 0 ? (
                   <div className="text-center py-8">
-                    <UtensilsCrossed className="w-12 h-12 mx-auto mb-3 text-gray-600" />
-                    <p className="text-gray-400 mb-4">Нет добавленных блюд</p>
+                    <UtensilsCrossed className="w-12 h-12 mx-auto mb-3 text-[var(--border-soft)]" />
+                    <p className="text-[var(--text-secondary)] mb-4">
+                      Нет добавленных блюд
+                    </p>
                     <button
                       onClick={() => setShowMealModal(true)}
                       className="cosmic-button flex items-center justify-center gap-2 mx-auto"
                     >
-                      <Plus className="w-4 h-4" />
+                      <PlusIcon />
                       Добавить первое блюдо
                     </button>
                   </div>
@@ -697,7 +972,7 @@ export default function DiaryPage() {
                     ))}
                     <button
                       onClick={() => setShowMealModal(true)}
-                      className="w-full mt-3 text-teal-400 text-sm font-medium py-2 hover:text-teal-300 transition"
+                      className="w-full mt-3 text-[var(--accent)] text-sm font-medium py-2 hover:text-[var(--accent-strong)] transition"
                     >
                       + Добавить еще блюдо
                     </button>
@@ -709,123 +984,21 @@ export default function DiaryPage() {
         </motion.div>
 
         {/* Тренировки */}
-        <motion.div
-          className="glass-card p-4"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-        >
-          <SectionHeader
-            title={entry.isRestDay ? "Выходной" : "Тренировки"}
-            icon={<Dumbbell className="w-5 h-5 text-green-400" />}
-            isOpen={openSection === "training"}
-            onToggle={() => toggleSection("training")}
-            progress={workoutProgress}
-          />
-
-          <AnimatePresence>
-            {openSection === "training" && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="pt-4"
-              >
-                {entry.isRestDay ? (
-                  <div className="text-center py-8">
-                    <Moon className="w-12 h-12 mx-auto mb-3 text-purple-400" />
-                    <p className="text-purple-400 font-semibold mb-2">
-                      Сегодня выходной
-                    </p>
-                    <p className="text-sm text-gray-400">
-                      Восстановление важно для прогресса!
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex justify-end mb-3">
-                      <button
-                        onClick={copyWorkoutsFromOtherDay}
-                        className="text-xs text-green-300 hover:text-green-200 underline underline-offset-4"
-                      >
-                        Скопировать тренировки с другой даты
-                      </button>
-                    </div>
-
-                    {entry.workouts.length === 0 ? (
-                      <div className="text-center py-8">
-                        <Dumbbell className="w-12 h-12 mx-auto mb-3 text-gray-600" />
-                        <p className="text-gray-400 mb-4">
-                          Нет упражнений на сегодня
-                        </p>
-                        <button
-                          onClick={() => setShowWorkoutModal(true)}
-                          className="cosmic-button flex items-center justify-center gap-2 mx-auto"
-                        >
-                          <Plus className="w-4 h-4" />
-                          Добавить упражнение
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {entry.workouts.map((workout) => (
-                          <WorkoutCard
-                            key={workout.id}
-                            workout={workout}
-                            onToggle={() => toggleWorkoutDone(workout.id)}
-                            onDelete={() => deleteWorkout(workout.id)}
-                          />
-                        ))}
-
-                        <button
-                          onClick={() => setShowWorkoutModal(true)}
-                          className="w-full mt-3 text-green-400 text-sm font-medium py-2 hover:text-green-300 transition"
-                        >
-                          + Добавить еще упражнение
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
-
-                {/* управление днем */}
-                <div className="flex justify-between items-center mt-6 pt-4 border-t border-gray-600">
-                  <button
-                    onClick={() =>
-                      setDiaryData((prev) => {
-                        const base = prev ?? DEFAULT_ENTRY;
-                        return {
-                          ...base,
-                          isRestDay: !base.isRestDay,
-                          workouts: !base.isRestDay ? [] : base.workouts,
-                        };
-                      })
-                    }
-                    className={`px-4 py-2 rounded-xl font-semibold transition ${
-                      entry.isRestDay
-                        ? "bg-purple-500 text-white hover:bg-purple-600"
-                        : "border border-purple-500 text-purple-400 hover:bg-purple-500/10"
-                    }`}
-                  >
-                    {entry.isRestDay
-                      ? "Отменить выходной"
-                      : "Сделать выходной"}
-                  </button>
-
-                  {!entry.isRestDay && (
-                    <button
-                      onClick={() => setShowWorkoutModal(true)}
-                      className="cosmic-button"
-                    >
-                      Добавить упражнение
-                    </button>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
+        <TrainingSection
+          entry={entry}
+          open={openSection === "training"}
+          progress={workoutProgress}
+          onToggle={() => toggleSection("training")}
+          onCopyClick={() => {
+            setCopyWorkoutsDate(selectedDate);
+            setCopyWorkoutsError(null);
+            setShowCopyWorkoutsModal(true);
+          }}
+          onAddWorkout={() => setShowWorkoutModal(true)}
+          onToggleWorkout={toggleWorkoutDone}
+          onDeleteWorkout={deleteWorkout}
+          setDiaryData={setDiaryData}
+        />
 
         {/* Вода */}
         <motion.div
@@ -836,7 +1009,7 @@ export default function DiaryPage() {
         >
           <SectionHeader
             title="Вода"
-            icon={<Droplets className="w-5 h-5 text-blue-400" />}
+            icon={<Droplets className="w-5 h-5 text-[var(--info)]" />}
             isOpen={openSection === "water"}
             onToggle={() => toggleSection("water")}
             progress={waterProgress}
@@ -859,7 +1032,7 @@ export default function DiaryPage() {
                       return { ...base, water: val };
                     })
                   }
-                  goal={2.5}
+                  goal={WATER_GOAL}
                 />
               </motion.div>
             )}
@@ -875,7 +1048,7 @@ export default function DiaryPage() {
         >
           <SectionHeader
             title="Сон"
-            icon={<Moon className="w-5 h-5 text-purple-400" />}
+            icon={<Moon className="w-5 h-5 text-[var(--purple)]" />}
             isOpen={openSection === "sleep"}
             onToggle={() => toggleSection("sleep")}
             progress={sleepProgress}
@@ -904,272 +1077,109 @@ export default function DiaryPage() {
           </AnimatePresence>
         </motion.div>
 
-        {/* Самочувствие */}
-        <motion.div
-          className="glass-card p-4"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.7 }}
-        >
-          <SectionHeader
-            title="Самочувствие"
-            icon={<Activity className="w-5 h-5 text-yellow-400" />}
-            isOpen={openSection === "wellbeing"}
-            onToggle={() => toggleSection("wellbeing")}
-            progress={(((entry.mood || 5) + (entry.energy || 5)) / 2) * 20}
-          />
-
-          <AnimatePresence>
-            {openSection === "wellbeing" && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="pt-4"
-              >
-                <div className="space-y-4">
-                  {/* настроение */}
-                  <div>
-                    <label className="block text-sm text-gray-300 mb-2">
-                      Настроение
-                    </label>
-                    <div className="flex items-center gap-2">
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                        <button
-                          key={num}
-                          onClick={() =>
-                            setDiaryData((prev) => {
-                              const base = prev ?? DEFAULT_ENTRY;
-                              return { ...base, mood: num };
-                            })
-                          }
-                          className={`w-8 h-8 rounded-full text-sm font-semibold transition-all ${
-                            entry.mood === num
-                              ? "bg-yellow-400 text-black scale-110"
-                              : "bg-black/30 text-gray-400 hover:bg-yellow-400/20"
-                          }`}
-                        >
-                          {num}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>😔 Плохо</span>
-                      <span>😐 Нормально</span>
-                      <span>😊 Отлично</span>
-                    </div>
-                  </div>
-
-                  {/* энергия */}
-                  <div>
-                    <label className="block text-sm text-gray-300 mb-2">
-                      Уровень энергии
-                    </label>
-                    <div className="flex items-center gap-2">
-                      {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => (
-                        <button
-                          key={num}
-                          onClick={() =>
-                            setDiaryData((prev) => {
-                              const base = prev ?? DEFAULT_ENTRY;
-                              return { ...base, energy: num };
-                            })
-                          }
-                          className={`w-8 h-8 rounded-full text-sm font-semibold transition-all ${
-                            entry.energy === num
-                              ? "bg-green-400 text-black scale-110"
-                              : "bg-black/30 text-gray-400 hover:bg-green-400/20"
-                          }`}
-                        >
-                          {num}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="flex justify-between text-xs text-gray-500 mt-1">
-                      <span>😴 Устал</span>
-                      <span>⚡ Нормально</span>
-                      <span>🔋 Полный</span>
-                    </div>
-                  </div>
-
-                  {/* заметки */}
-                  <div>
-                    <label className="block text-sm text-gray-300 mb-2">
-                      Заметки о дне
-                    </label>
-                    <textarea
-                      value={entry.notes || ""}
-                      onChange={(e) =>
-                        setDiaryData((prev) => {
-                          const base = prev ?? DEFAULT_ENTRY;
-                          return { ...base, notes: e.target.value };
-                        })
-                      }
-                      placeholder="Как прошел день? Что получилось хорошо? Что можно улучшить?"
-                      className="w-full h-24 bg-black/30 border border-gray-600 rounded-lg px-3 py-2 text-white focus:border-teal-400 focus:outline-none resize-none"
-                    />
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
-
         {/* Чек-лист */}
-        <motion.div
-          className="glass-card p-4"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.75 }}
-        >
-          <SectionHeader
-            title="Чек-лист"
-            icon={<ListTodo className="w-5 h-5 text-emerald-400" />}
-            isOpen={openSection === "checklist"}
-            onToggle={() => toggleSection("checklist")}
-            progress={checklistProgress}
-          />
-
-          <AnimatePresence>
-            {openSection === "checklist" && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: "auto", opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="pt-4"
-              >
-                {entry.checklist.length === 0 ? (
-                  <div className="text-center py-6">
-                    <ListTodo className="w-10 h-10 mx-auto mb-3 text-gray-600" />
-                    <p className="text-gray-400 mb-3">
-                      Пока нет задач на этот день
-                    </p>
-                    <button
-                      onClick={() => setShowChecklistModal(true)}
-                      className="cosmic-button flex items-center justify-center gap-2 mx-auto"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Добавить задачу
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {entry.checklist.map((item) => (
-                      <ChecklistCard
-                        key={item.id}
-                        item={item}
-                        onToggle={() => toggleChecklistItem(item.id)}
-                        onDelete={() => deleteChecklistItem(item.id)}
-                      />
-                    ))}
-
-                    <button
-                      onClick={() => setShowChecklistModal(true)}
-                      className="w-full mt-3 text-emerald-400 text-sm font-medium py-2 hover:text-emerald-300 transition"
-                    >
-                      + Добавить задачу
-                    </button>
-                  </div>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
+        <ChecklistSection
+          open={openSection === "checklist"}
+          progress={checklistProgress}
+          checklist={checklistForUI}
+          onToggle={() => toggleSection("checklist")}
+          onToggleItem={toggleChecklistItem}
+          onDeleteItem={deleteChecklistItem}
+          onAddClick={() => setShowChecklistModal(true)}
+        />
 
         {/* Достижения дня */}
         <motion.div
-          className="glass-card p-4"
+          className="glass-card p-4 mb-6"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.8 }}
         >
-          <h2 className="text-lg font-semibold mb-4 text-gray-300 flex items-center gap-2">
-            <Award className="w-5 h-5 text-yellow-400" />
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-[var(--text-primary)]">
+            <Award className="w-5 h-5 text-[var(--accent-gold)]" />
             Достижения дня
           </h2>
 
-          <div className="space-y-3">
+          <div className="space-y-3 text-sm">
             {nutritionProgress >= 80 && (
-              <div className="flex items-center gap-3 bg-green-500/10 border border-green-500/20 rounded-lg p-3">
-                <Award className="w-6 h-6 text-green-400" />
-                <div>
-                  <div className="font-medium text-green-400">
-                    Питание на высоте!
-                  </div>
-                  <div className="text-sm text-gray-400">
-                    Выполнена норма калорий
-                  </div>
-                </div>
-              </div>
+              <AchievementCard
+                icon={<Award className="w-6 h-6" />}
+                title="Питание на высоте!"
+                description="Выполнена норма калорий"
+                color="var(--success)"
+              />
             )}
 
             {waterProgress >= 80 && (
-              <div className="flex items-center gap-3 bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
-                <Droplets className="w-6 h-6 text-blue-400" />
-                <div>
-                  <div className="font-medium text-blue-400">
-                    Гидрация в норме!
-                  </div>
-                  <div className="text-sm text-gray-400">
-                    Выполнена норма воды
-                  </div>
-                </div>
-              </div>
+              <AchievementCard
+                icon={<Droplets className="w-6 h-6" />}
+                title="Гидрация в норме!"
+                description="Выполнена норма воды"
+                color="var(--info)"
+              />
             )}
 
             {sleepProgress >= 80 && (
-              <div className="flex items-center gap-3 bg-purple-500/10 border border-purple-500/20 rounded-lg p-3">
-                <Moon className="w-6 h-6 text-purple-400" />
-                <div>
-                  <div className="font-medium text-purple-400">
-                    Отличный сон!
-                  </div>
-                  <div className="text-sm text-gray-400">
-                    8 часов качественного отдыха
-                  </div>
-                </div>
-              </div>
+              <AchievementCard
+                icon={<Moon className="w-6 h-6" />}
+                title="Отличный сон!"
+                description="8 часов качественного отдыха"
+                color="var(--purple)"
+              />
             )}
 
-            {(entry.mood || 0) >= 8 && (
-              <div className="flex items-center gap-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
-                <Activity className="w-6 h-6 text-yellow-400" />
-                <div>
-                  <div className="font-medium text-yellow-400">
-                    Отличное настроение!
-                  </div>
-                  <div className="text-sm text-gray-400">
-                    Продолжай в том же духе
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {entry.checklist.length > 0 &&
-              entry.checklist.every((t) => t.done) && (
-                <div className="flex items-center gap-3 bg-emerald-500/10 border border-emerald-500/20 rounded-lg p-3">
-                  <ListTodo className="w-6 h-6 text-emerald-400" />
-                  <div>
-                    <div className="font-medium text-emerald-400">
-                      Все задачи на сегодня выполнены!
-                    </div>
-                    <div className="text-sm text-gray-400">
-                      Это и есть настоящая дисциплина
-                    </div>
-                  </div>
-                </div>
+            {checklistForUI.length > 0 &&
+              checklistForUI.every((t) => t.done) && (
+                <AchievementCard
+                  icon={<ListTodo className="w-6 h-6" />}
+                  title="Все задачи на сегодня выполнены!"
+                  description="Это и есть настоящая дисциплина"
+                  color="var(--success)"
+                />
               )}
           </div>
         </motion.div>
       </div>
 
-      {/* Модальные окна */}
+      {/* Модалки копирования с другой даты */}
+      <AnimatePresence>
+        {showCopyMealsModal && (
+          <CopyFromDateModal
+              isOpen
+              title="Скопировать питание с другой даты"
+              description="Питание за выбранную дату будет заменено."
+              date={copyMealsDate}
+              error={copyMealsError}
+              onDateChange={setCopyMealsDate}
+              onCancel={() => {
+                setShowCopyMealsModal(false);
+                setCopyMealsError(null);
+              }}
+              onConfirm={handleCopyMealsConfirm}
+            />
+        )}
+
+        {showCopyWorkoutsModal && (
+         <CopyFromDateModal
+            isOpen
+            title="Скопировать тренировки с другой даты"
+            description="Тренировки за выбранную дату будут заменены."
+            date={copyWorkoutsDate}
+            error={copyWorkoutsError}
+            onDateChange={setCopyWorkoutsDate}
+            onCancel={() => {
+              setShowCopyWorkoutsModal(false);
+              setCopyWorkoutsError(null);
+            }}
+            onConfirm={handleCopyWorkoutsConfirm}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Модалки добавления блюд / тренировок / задач */}
       {showMealModal && (
         <AddMealModal
           onClose={() => setShowMealModal(false)}
-          // сюда даём всё, что уже есть в разделе "Питание" дневника + база рецептов
           readyMeals={mealsForModal}
           onSave={(meal) => {
             const m = meal as any;
@@ -1187,6 +1197,7 @@ export default function DiaryPage() {
                 minute: "2-digit",
               }),
               type: m.type as DiaryMeal["type"] | undefined,
+              slug: m.slug,
             };
 
             setDiaryData((prev) => {
@@ -1196,6 +1207,7 @@ export default function DiaryPage() {
                 meals: [...base.meals, newMeal],
               };
             });
+
             setShowMealModal(false);
           }}
         />
@@ -1204,7 +1216,6 @@ export default function DiaryPage() {
       {showWorkoutModal && (
         <AddWorkoutModal
           onClose={() => setShowWorkoutModal(false)}
-          // сюда даём всё, что уже есть в разделе "Тренировки" дневника + база планов
           readyWorkouts={workoutsForModal}
           onSave={(workout) => {
             const newWorkout: Workout = {
@@ -1220,6 +1231,7 @@ export default function DiaryPage() {
               exerciseSlug: workout.exerciseSlug,
               done: false,
             };
+
             setDiaryData((prev) => {
               const base = prev ?? DEFAULT_ENTRY;
               return {
@@ -1227,11 +1239,11 @@ export default function DiaryPage() {
                 workouts: [...base.workouts, newWorkout],
               };
             });
+
             setShowWorkoutModal(false);
           }}
         />
       )}
-
 
       <AnimatePresence>
         {showChecklistModal && (
@@ -1245,326 +1257,32 @@ export default function DiaryPage() {
   );
 }
 
-// ===== UI-компоненты =====
+// ======================================================================
+// МЕЛКИЕ ВСПОМОГАТЕЛЬНЫЕ КОМПОНЕНТЫ, КОТОРЫЕ ЛУЧШЕ ОСТАВИТЬ ЗДЕСЬ
+// ======================================================================
 
-function ProgressRing({
-  icon,
-  progress,
-  color,
+function BjuRow({
   label,
+  value,
+  goal,
+  unit,
 }: {
-  icon: JSX.Element;
-  progress: number;
-  color: string;
   label: string;
+  value: number;
+  goal: number;
+  unit?: string;
 }) {
-  const circumference = 2 * Math.PI * 20;
-  const offset = circumference - (progress / 100) * circumference;
-
   return (
-    <div className="text-center">
-      <div className="relative w-16 h-16 mx-auto mb-2">
-        <svg className="w-16 h-16 -rotate-90">
-          <circle
-            cx="32"
-            cy="32"
-            r="20"
-            stroke="rgba(255,255,255,0.1)"
-            strokeWidth="4"
-            fill="none"
-          />
-          <motion.circle
-            cx="32"
-            cy="32"
-            r="20"
-            stroke={color}
-            strokeWidth="4"
-            fill="none"
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-            initial={{ strokeDashoffset: circumference }}
-            animate={{ strokeDashoffset: offset }}
-            transition={{ duration: 1, ease: "easeOut" }}
-          />
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div style={{ color }} className="text-lg">
-            {icon}
-          </div>
-        </div>
-      </div>
-      <div className="text-xs text-gray-400">{label}</div>
-      <div className="text-sm font-semibold text-white">
-        {Math.round(progress)}%
-      </div>
+    <div className="flex justify-between text-xs sm:text-sm">
+      <span className="text-[var(--text-secondary)]">{label}:</span>
+      <span className="font-semibold text-[var(--text-primary)]">
+        {value}/{goal}
+        {unit}
+      </span>
     </div>
   );
 }
 
-function SectionHeader({
-  title,
-  icon,
-  isOpen,
-  onToggle,
-  progress,
-}: {
-  title: string;
-  icon: JSX.Element;
-  isOpen: boolean;
-  onToggle: () => void;
-  progress: number;
-}) {
-  return (
-    <button
-      onClick={onToggle}
-      className="w-full flex items-center justify-between py-2 text-left"
-    >
-      <div className="flex items-center gap-3">
-        {icon}
-        <span className="font-semibold text-gray-300">{title}</span>
-        <div className="text-xs text-gray-500">{Math.round(progress)}%</div>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="w-12 h-1 bg-gray-600 rounded-full overflow-hidden">
-          <motion.div
-            className="h-full bg-gradient-to-r from-teal-400 to-green-400 rounded-full"
-            initial={{ width: 0 }}
-            animate={{ width: `${progress}%` }}
-            transition={{ duration: 0.5 }}
-          />
-        </div>
-        {isOpen ? (
-          <ChevronUp className="w-5 h-5 text-gray-400" />
-        ) : (
-          <ChevronDown className="w-5 h-5 text-gray-400" />
-        )}
-      </div>
-    </button>
-  );
-}
-
-// карточка блюда
-function MealCard({
-  meal,
-  onToggle,
-  onDelete,
-}: {
-  meal: DiaryMeal;
-  onToggle: () => void;
-  onDelete: () => void;
-}) {
-  const router = useRouter();
-
-  const handleCardClick = () => {
-    if (meal.slug) {
-      router.push(`/meals/${meal.slug}`);
-    }
-  };
-
-  const handleToggleClick = (e: any) => {
-    e.stopPropagation();
-    onToggle();
-  };
-
-  const handleDeleteClick = (e: any) => {
-    e.stopPropagation();
-    onDelete();
-  };
-
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      onClick={handleCardClick}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => e.key === "Enter" && handleCardClick()}
-      className={`flex items-center justify-between border rounded-xl px-4 py-3 transition-all cursor-pointer ${
-        meal.done
-          ? "bg-green-500/10 border-green-500/30"
-          : "bg-black/20 border-gray-600"
-      }`}
-    >
-      <div className="flex-1">
-        <div className="flex items-center gap-2 mb-1">
-          <p
-            className={`font-medium ${
-              meal.done ? "text-green-400 line-through" : "text-white"
-            }`}
-          >
-            {meal.title}
-          </p>
-          {meal.time && (
-            <span className="text-xs text-gray-500">{meal.time}</span>
-          )}
-        </div>
-
-        <p className="text-xs text-gray-400">
-          {meal.calories} ккал • Б {meal.protein}г • Ж {meal.fat}г • У{" "}
-          {meal.carbs}г
-        </p>
-      </div>
-      <div className="flex items-center gap-3">
-        <button
-          onClick={handleToggleClick}
-          className="text-teal-400 hover:text-teal-300 transition"
-        >
-          {meal.done ? (
-            <CheckCircle className="w-5 h-5" />
-          ) : (
-            <div className="w-5 h-5 border-2 border-gray-400 rounded-full hover:border-teal-400 transition" />
-          )}
-        </button>
-        <button
-          onClick={handleDeleteClick}
-          className="text-red-400 hover:text-red-300 transition"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
-      </div>
-    </motion.div>
-  );
-}
-
-// карточка упражнения
-function WorkoutCard({
-  workout,
-  onToggle,
-  onDelete,
-}: {
-  workout: Workout;
-  onToggle: () => void;
-  onDelete: () => void;
-}) {
-  const router = useRouter();
-
-  const handleCardClick = () => {
-    if (workout.exerciseSlug) {
-      router.push(`/workouts/exercises/${workout.exerciseSlug}`);
-    } else if (workout.planSlug) {
-      router.push(`/workouts/${workout.planSlug}`);
-    }
-  };
-
-  const handleToggleClick = (e: any) => {
-    e.stopPropagation();
-    onToggle();
-  };
-
-  const handleDeleteClick = (e: any) => {
-    e.stopPropagation();
-    onDelete();
-  };
-
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      onClick={handleCardClick}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => e.key === "Enter" && handleCardClick()}
-      className={`border rounded-xl p-4 flex justify между items-center transition-all cursor-pointer ${
-        workout.done
-          ? "bg-green-500/10 border-green-500/30"
-          : "bg-black/20 border-gray-600"
-      }`}
-    >
-      <div>
-        <p
-          className={`font-semibold mb-1 ${
-            workout.done ? "text-green-400 line-through" : "text-white"
-          }`}
-        >
-          {workout.name}
-        </p>
-        <p className="text-xs text-gray-400">
-          {workout.sets} подходов × {workout.reps} повторений
-          {workout.weight ? ` • ${workout.weight} кг` : ""}
-          {workout.duration ? ` • ${workout.duration} мин` : ""}
-        </p>
-      </div>
-      <div className="flex items-center gap-3">
-        <button
-          onClick={handleToggleClick}
-          className="text-teal-400 hover:text-teal-300 transition"
-        >
-          {workout.done ? (
-            <CheckCircle className="w-6 h-6" />
-          ) : (
-            <div className="w-6 h-6 border-2 border-gray-400 rounded-full hover:border-teal-400 transition" />
-          )}
-        </button>
-        <button
-          onClick={handleDeleteClick}
-          className="text-red-400 hover:text-red-300 transition"
-        >
-          <Trash2 className="w-5 h-5" />
-        </button>
-      </div>
-    </motion.div>
-  );
-}
-
-// карточка чек-листа
-function ChecklistCard({
-  item,
-  onToggle,
-  onDelete,
-}: {
-  item: ChecklistItem;
-  onToggle: () => void;
-  onDelete: () => void;
-}) {
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 6 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 6 }}
-      className={`flex items-center justify-between border rounded-xl px-4 py-3 transition-all ${
-        item.done
-          ? "bg-emerald-500/10 border-emerald-500/30"
-          : "bg-black/20 border-gray-600"
-      }`}
-    >
-      <div className="flex-1">
-        <p
-          className={`font-medium ${
-            item.done ? "text-emerald-400 line-through" : "text-white"
-          }`}
-        >
-          {item.title}
-        </p>
-        {item.repeatMode === "weekly" && item.daysOfWeek?.length ? (
-          <p className="text-[11px] text-emerald-300 mt-1">
-            Повтор каждую неделю ({item.daysOfWeek.length}× в неделю)
-          </p>
-        ) : null}
-      </div>
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onToggle}
-          className="text-emerald-400 hover:text-emerald-300 transition"
-        >
-          {item.done ? (
-            <CheckCircle className="w-5 h-5" />
-          ) : (
-            <div className="w-5 h-5 border-2 border-gray-400 rounded-full hover:border-emerald-400 transition" />
-          )}
-        </button>
-        <button
-          onClick={onDelete}
-          className="text-red-400 hover:text-red-300 transition"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
-      </div>
-    </motion.div>
-  );
+function PlusIcon() {
+  return <span className="inline-block w-4 h-4 leading-none">+</span>;
 }

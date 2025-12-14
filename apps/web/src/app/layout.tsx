@@ -1,8 +1,11 @@
+// apps/web/src/app/layout.tsx
 import "./globals.css";
 import "../styles/themes.css";
 import Script from "next/script";
 import Navigation from "./components/Navigation";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { TelegramProvider } from "@/context/TelegramContext";
+import TelegramBoot from "./components/TelegramBoot";
 
 export const metadata = {
   title: "AVYRA FitEat - Космический фитнес-помощник",
@@ -21,11 +24,7 @@ export const metadata = {
   },
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ru">
       <head>
@@ -37,22 +36,15 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
         <link rel="apple-touch-icon" href="/icon-192x192.png" />
 
-        {/* Предзагрузка шрифтов для лучшей производительности */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
           href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap"
           rel="stylesheet"
         />
 
-        {/* Мета-теги для Telegram WebApp */}
         <meta name="telegram:webapp" content="true" />
 
-        {/* Telegram WebApp SDK */}
         <Script
           src="https://telegram.org/js/telegram-web-app.js"
           strategy="afterInteractive"
@@ -61,13 +53,17 @@ export default function RootLayout({
 
       <body className="antialiased text-[var(--text-primary)] bg-[var(--background)]">
         <ThemeProvider>
-          <div className="cosmic-bg"></div>
+          <TelegramProvider>
+            <TelegramBoot />
 
-          <main className="relative z-10 min-h-screen pb-20">
-            {children}
-          </main>
+            <div className="cosmic-bg"></div>
 
-          <Navigation />
+            <main className="relative z-10 min-h-screen pb-20">
+              {children}
+            </main>
+
+            <Navigation />
+          </TelegramProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -1,4 +1,3 @@
-// apps/web/src/app/diary/components/MealCard.tsx
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -6,19 +5,29 @@ import { motion } from "framer-motion";
 import { CheckCircle, Trash2 } from "lucide-react";
 import type { DiaryMeal } from "../diary-types";
 
-type MealCardProps = {
+interface MealCardProps {
   meal: DiaryMeal;
   onToggle: () => void;
   onDelete: () => void;
-};
+}
 
-export default function MealCard({ meal, onToggle, onDelete }: MealCardProps) {
+const MealCard: React.FC<MealCardProps> = ({ meal, onToggle, onDelete }) => {
   const router = useRouter();
 
   const handleCardClick = () => {
-    if (meal.slug) {
-      router.push(`/meals/${meal.slug}`);
-    }
+    if (!meal.slug) return;
+
+    // если в дневнике есть калорийность — передаём её как target
+    const hasCalories =
+      typeof meal.calories === "number" && Number.isFinite(meal.calories);
+
+    const url = hasCalories
+      ? `/meals/${meal.slug}?target=${encodeURIComponent(
+          String(Math.round(meal.calories)),
+        )}`
+      : `/meals/${meal.slug}`;
+
+    router.push(url);
   };
 
   const handleToggleClick = (e: React.MouseEvent) => {
@@ -90,4 +99,6 @@ export default function MealCard({ meal, onToggle, onDelete }: MealCardProps) {
       </div>
     </motion.div>
   );
-}
+};
+
+export default MealCard;

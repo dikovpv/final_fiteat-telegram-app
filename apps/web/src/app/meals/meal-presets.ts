@@ -1,19 +1,29 @@
 // apps/web/src/app/meals/meal-presets.ts
 
-import { MealType } from "./meals-data";
+import type { MealType } from "./meal-data";
 
-export type MealSplitPreset = {
-  id: "classic" | "heavy-lunch" | "even";
-  label: string;
-  description: string;
-  ratios: Record<MealType, number>;
+// ID пресета (стиля деления)
+export type MealSplitStyleId = "classic" | "heavy_lunch" | "even";
+
+// Для обратной совместимости со старыми импортами
+export type MealSplitId = MealSplitStyleId;
+
+// Базовый тип стиля деления по приёмам пищи
+export type MealSplitStyle = {
+  id: MealSplitStyleId;
+  label: string; // название на кнопке
+  ratios: Record<MealType, number>; // доли 0–1 по каждому приёму пищи
 };
 
+// Пресет = стиль (чтобы не дублировать сущности)
+export type MealSplitPreset = MealSplitStyle;
+
+// Набор пресетов для страницы /meals
 export const MEAL_SPLIT_PRESETS: MealSplitPreset[] = [
   {
     id: "classic",
     label: "Классика",
-    description: "25% завтрак · 35% обед · 30% ужин · 10% перекус",
+    // завтрак 25%, обед 35%, ужин 30%, перекус 10%, десерт 0
     ratios: {
       breakfast: 0.25,
       lunch: 0.35,
@@ -23,13 +33,12 @@ export const MEAL_SPLIT_PRESETS: MealSplitPreset[] = [
     },
   },
   {
-    id: "heavy-lunch",
+    id: "heavy_lunch",
     label: "Тяжёлый обед",
-    description: "30% завтрак · 40% обед · 15% ужин · 15% перекус",
     ratios: {
-      breakfast: 0.3,
+      breakfast: 0.2,
       lunch: 0.4,
-      dinner: 0.15,
+      dinner: 0.25,
       snack: 0.15,
       dessert: 0,
     },
@@ -37,7 +46,6 @@ export const MEAL_SPLIT_PRESETS: MealSplitPreset[] = [
   {
     id: "even",
     label: "Равномерно",
-    description: "30% завтрак · 30% обед · 30% ужин · 10% перекус",
     ratios: {
       breakfast: 0.3,
       lunch: 0.3,
@@ -48,6 +56,15 @@ export const MEAL_SPLIT_PRESETS: MealSplitPreset[] = [
   },
 ];
 
-export const MEAL_SPLIT_STORAGE_KEY = "fitEatMealSplitPreset";
-export const DEFAULT_MEAL_SPLIT_ID: MealSplitPreset["id"] =
-  MEAL_SPLIT_PRESETS[0]?.id ?? "classic";
+// ID пресета по умолчанию
+export const DEFAULT_MEAL_SPLIT_ID: MealSplitStyleId = "even";
+
+// ключ в localStorage
+export const MEAL_SPLIT_STORAGE_KEY = "fitEat_meal_split_preset";
+
+// Утилита для поиска пресета по id (чтобы старый код meal-scale.ts не ломался)
+export function getSplitById(
+  id: MealSplitId,
+): MealSplitStyle | undefined {
+  return MEAL_SPLIT_PRESETS.find((preset) => preset.id === id);
+}

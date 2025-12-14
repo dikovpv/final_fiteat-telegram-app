@@ -1,12 +1,16 @@
-// apps/web/src/app/meals/page.tsx
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Filter, Flame, UtensilsCrossed, Sparkles, Lock } from "lucide-react";
 
-import { meals, type MealRecipe, type MealType, computeMealNutrition } from "./meals-data";
+import PageHeader from "../components/PageHeader";
+import {
+  meals,
+  type MealRecipe,
+  type MealType,
+  computeMealNutrition,
+} from "./meal-data";
 import { getUserPlan, type PlanType } from "@/lib/user-plan";
 import {
   DEFAULT_MEAL_SPLIT_ID,
@@ -15,7 +19,7 @@ import {
   type MealSplitPreset,
 } from "./meal-presets";
 
-// ----- типы и константы -----
+// ====================== ТИПЫ ======================
 
 type UserPlanState = {
   isPro: boolean;
@@ -33,6 +37,16 @@ type MealWithNutrition = {
   carbs: number;
 };
 
+type MealTarget = {
+  calories: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+  share: number; // доля 0–1
+};
+
+type MealTargetsMap = Partial<Record<MealType, MealTarget>>;
+
 const MEAL_TYPE_LABELS: Record<MealType, string> = {
   breakfast: "Завтрак",
   lunch: "Обед",
@@ -49,12 +63,14 @@ const MEAL_TYPES_ORDER: MealType[] = [
   "dessert",
 ];
 
-// читаем только КБЖУ из localStorage, а тип плана — через getUserPlan()
+// ====================== ЗАГРУЗКА СОСТОЯНИЯ ПОЛЬЗОВАТЕЛЯ ======================
+
 function loadUserPlanState(): UserPlanState {
   let calories = 2400;
   let proteinGoal = 160;
   let fatGoal = 80;
   let carbsGoal = 300;
+  let planType: PlanType = "free";
 
   if (typeof window !== "undefined") {
     try {
@@ -83,11 +99,12 @@ function loadUserPlanState(): UserPlanState {
           carbsGoal;
       }
     } catch {
-      // падаем в дефолты
+      // оставляем дефолты
     }
+
+    planType = getUserPlan();
   }
 
-  const planType: PlanType = getUserPlan(); // "free" | "pro"
   const isPro = planType === "pro";
 
   return {
@@ -99,93 +116,91 @@ function loadUserPlanState(): UserPlanState {
   };
 }
 
-// ----- страница -----
+// ====================== СТРАНИЦА ======================
 
 export default function MealsPage() {
   const [userPlan, setUserPlan] = useState<UserPlanState | null>(null);
   const [selectedType, setSelectedType] = useState<MealType | "all">("all");
   const [calorieMin, setCalorieMin] = useState<string>("");
   const [calorieMax, setCalorieMax] = useState<string>("");
+
   const [mealSplitPresetId, setMealSplitPresetId] =
     useState<MealSplitPreset["id"]>(DEFAULT_MEAL_SPLIT_ID);
 
+  // загрузка данных пользователя
   useEffect(() => {
     const state = loadUserPlanState();
     setUserPlan(state);
   }, []);
 
+  // загрузка выбранного стиля деления калорий
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const presetFromStorage = window.localStorage.getItem(MEAL_SPLIT_STORAGE_KEY);
-    if (presetFromStorage && MEAL_SPLIT_PRESETS.some((p) => p.id === presetFromStorage)) {
+    const presetFromStorage = window.localStorage.getItem(
+      MEAL_SPLIT_STORAGE_KEY,
+    );
+    if (
+      presetFromStorage &&
+      MEAL_SPLIT_PRESETS.some((p) => p.id === presetFromStorage)
+    ) {
       setMealSplitPresetId(presetFromStorage as MealSplitPreset["id"]);
     }
   }, []);
 
+  // сохранение выбранного стиля
   useEffect(() => {
     if (typeof window === "undefined") return;
     window.localStorage.setItem(MEAL_SPLIT_STORAGE_KEY, mealSplitPresetId);
   }, [mealSplitPresetId]);
 
-  const mealSplitPreset = useMemo(
-    () =>
-      MEAL_SPLIT_PRESETS.find((preset) => preset.id === mealSplitPresetId) ||
-      MEAL_SPLIT_PRESETS[0],
-    [mealSplitPresetId],
-  );
+  // активный пресет деления
+  const mealSplitPreset = useMemo<MealSplitPreset>(() => {
+    return (
+      MEAL_SPLIT_PRESETS.find(
+        (preset: MealSplitPreset) => preset.id === mealSplitPresetId,
+      ) ?? MEAL_SPLIT_PRESETS[0]
+    );
+  }, [mealSplitPresetId]);
 
   const isPro = !!userPlan?.isPro;
   const dailyCalories = userPlan?.calories ?? 2400;
 
-  const mealTargets = useMemo(() => {
-    if (!mealSplitPreset) return {};
+  // цели по каждому приёму пищи
+  const mealTargets = useMemo<MealTargetsMap>(() => {
+    if (!mealSplitPreset || !userPlan) return {};
 
-    return MEAL_TYPES_ORDER.reduce<
-      Partial<
-        Record<
-          MealType,
-          {
-            calories: number;
-            protein: number;
-            fat: number;
-            carbs: number;
-            share: number;
-          }
-        >
-      >
-    >((acc, type) => {
-      const share = mealSplitPreset.ratios[type] ?? 0;
+    return MEAL_TYPES_ORDER.reduce<MealTargetsMap>((acc, type) => {
+      const share = mealSplitPreset.ratios[type] ?? 0; // 0–1
       if (share <= 0) return acc;
 
       acc[type] = {
         calories: Math.round(dailyCalories * share),
-        protein: Math.round((userPlan?.proteinGoal ?? 0) * share),
-        fat: Math.round((userPlan?.fatGoal ?? 0) * share),
-        carbs: Math.round((userPlan?.carbsGoal ?? 0) * share),
+        protein: Math.round(userPlan.proteinGoal * share),
+        fat: Math.round(userPlan.fatGoal * share),
+        carbs: Math.round(userPlan.carbsGoal * share),
         share,
       };
       return acc;
     }, {});
   }, [dailyCalories, mealSplitPreset, userPlan]);
 
-  // Предрасчёт КБЖУ для всех рецептов
-  const mealsWithNutrition: MealWithNutrition[] = useMemo(
-    () =>
-      meals.map((meal: MealRecipe) => {
-        const n = computeMealNutrition(meal);
-        return {
-          meal,
-          calories: n.perPortionCalories,
-          protein: n.perPortionProtein,
-          fat: n.perPortionFat,
-          carbs: n.perPortionCarbs,
-        };
-      }),
-    [],
-  );
+  // считаем КБЖУ для каждой порции с учётом цели по ккал
+  const mealsWithNutrition: MealWithNutrition[] = useMemo(() => {
+    return meals.map((meal: MealRecipe) => {
+      const targetForType = mealTargets[meal.mealType];
+      const n = computeMealNutrition(meal, targetForType?.calories);
+      return {
+        meal,
+        calories: n.perPortionCalories,
+        protein: n.perPortionProtein,
+        fat: n.perPortionFat,
+        carbs: n.perPortionCarbs,
+      };
+    });
+  }, [mealTargets]);
 
-  // Фильтр по типу и диапазону калорий
+  // фильтрация по типу и ккал
   const filteredMeals: MealWithNutrition[] = useMemo(() => {
     const minCals = calorieMin ? Number(calorieMin) : null;
     const maxCals = calorieMax ? Number(calorieMax) : null;
@@ -204,215 +219,198 @@ export default function MealsPage() {
         return false;
       }
 
-      // PRO-рецепты тоже показываем — они просто под замком
       return true;
     });
   }, [mealsWithNutrition, selectedType, calorieMin, calorieMax]);
 
+  const currentTariffLabel = isPro ? "FitEat PRO" : "Базовый тариф";
+
+  // ====================== RENDER ======================
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#05050a] via-[#10081d] to-[#1a1238] text-white pb-24">
+    <>
       <div className="cosmic-bg" />
 
-      <div className="relative z-10 px-4 pt-6 pb-8 space-y-6">
-        {/* Заголовок */}
-        <motion.div
-          className="flex items-center justify-between mb-2"
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <div>
-            <h1 className="text-xl font-bold flex items-center gap-2">
-              <UtensilsCrossed className="w-5 h-5 text-teal-300" />
-              Рецепты FitEat
-            </h1>
-            <p className="text-xs text-gray-400 mt-1">
-              Подбирай блюда под свой план КБЖУ и собирай день из рецептов.
-            </p>
-          </div>
-          {isPro && (
-            <div className="px-3 py-1 rounded-full bg-yellow-500/10 border border-yellow-400/40 text-xs text-yellow-200 flex items-center gap-1">
-              <Sparkles className="w-3 h-3" />
-              <span>PRO активно</span>
-            </div>
-          )}
-        </motion.div>
+      <div className="relative z-10 min-h-screen bg-[var(--background)] text-[var(--text-primary)] pb-24 flex flex-col">
+        <PageHeader
+          title="Питание"
+          backHref="/"
+          backLabel="На главную"
+          rightSlot={
+            <span className="text-[11px] text-white/85">
+              Тариф: {currentTariffLabel}
+            </span>
+          }
+        />
 
-        {/* Блок выбора пресета */}
-        <motion.section
-          className="glass-card p-4 space-y-4"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1">
-              <h2 className="text-sm font-semibold flex items-center gap-2">
-                Настрой деление калорий по приёмам пищи
-              </h2>
-              <p className="text-xs text-gray-400">
-                Выбери стиль (классика / тяжёлый обед / равномерно). Эти проценты
-                сохранятся и будут применяться при открытии рецепта: я пересчитаю
-                порцию под твою цель без дробных ингредиентов.
-              </p>
+        <div className="px-3 pt-3 sm:px-4 md:px-5 flex flex-col gap-3">
+          {/* Деление калорий по приёмам пищи */}
+          <motion.section
+            className="glass-card px-4 py-4 space-y-4"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1">
+                <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                  Деление калорий по приёмам пищи
+                </h2>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Выбери стиль:{" "}
+                  <span className="font-medium">классика</span>,{" "}
+                  <span className="font-medium">тяжёлый обед</span> или{" "}
+                  <span className="font-medium">равномерно</span>. Эти
+                  проценты я буду использовать, когда подбираю порцию рецепта
+                  под твою дневную норму.
+                </p>
+              </div>
             </div>
-            <div className="text-right text-[11px] text-gray-500">
-              Текущая норма: ~{dailyCalories} ккал
+
+            {/* кнопки стилей — только название */}
+            <div className="flex flex-wrap gap-2">
+              {MEAL_SPLIT_PRESETS.map((preset: MealSplitPreset) => {
+                const active = preset.id === mealSplitPreset.id;
+
+                return (
+                  <button
+                    key={preset.id}
+                    onClick={() => setMealSplitPresetId(preset.id)}
+                    className={`rounded-lg border px-3 py-2 text-left text-xs transition ${
+                      active
+                        ? "border-[var(--accent-gold)] bg-[var(--accent-gold)]/10 text-[var(--text-primary)]"
+                        : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--text-secondary)]"
+                    }`}
+                  >
+                    <div className="font-semibold text-[13px] flex items-center gap-2">
+                      {preset.label}
+                    </div>
+                  </button>
+                );
+              })}
             </div>
-          </div>
 
-          <div className="flex flex-wrap gap-2">
-            {MEAL_SPLIT_PRESETS.map((preset) => {
-              const active = preset.id === mealSplitPreset?.id;
-              const ratios = preset.ratios;
+            {/* Цели по приёмам пищи */}
+            <div className="grid gap-2 md:grid-cols-2 text-[11px] text-[var(--text-secondary)]">
+              {MEAL_TYPES_ORDER.map((type) => {
+                const target = mealTargets[type];
+                if (!target) return null;
 
-              return (
-                <button
-                  key={preset.id}
-                  onClick={() => setMealSplitPresetId(preset.id)}
-                  className={`rounded-lg border px-3 py-2 text-left transition ${
-                    active
-                      ? "border-teal-400/70 bg-teal-500/10 text-teal-100"
-                      : "border-white/10 bg-black/20 text-gray-200"
-                  }`}
-                >
-                  <div className="font-semibold text-[13px] flex items-center gap-2">
-                    {preset.label}
-                    {active && (
-                      <span className="text-[10px] text-teal-200 bg-teal-500/20 px-2 py-0.5 rounded-full">
-                        выбрано
+                return (
+                  <div
+                    key={type}
+                    className="rounded-lg bg-[var(--surface-muted)] border border-[var(--border-soft)] px-3 py-2 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span>{MEAL_TYPE_LABELS[type]}</span>
+                      <span className="text-[var(--text-muted)]">
+                        {Math.round(target.share * 100)}%
                       </span>
-                    )}
+                    </div>
+                    <div className="text-right">
+                      ~{target.calories} ккал · Б {target.protein}г · Ж{" "}
+                      {target.fat}г · У {target.carbs}г
+                    </div>
                   </div>
-                  <div className="text-[11px] text-gray-400 leading-tight">
-                    {preset.description}
-                  </div>
-                  <div className="text-[11px] text-gray-500 leading-tight mt-1">
-                    З {Math.round(ratios.breakfast * 100)}% · О {Math.round(ratios.lunch * 100)}% · У {Math.round(ratios.dinner * 100)}% · П {Math.round(ratios.snack * 100)}%
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          </motion.section>
 
-          <div className="grid gap-2 md:grid-cols-2 text-[11px] text-gray-300">
-            {MEAL_TYPES_ORDER.map((type) => {
-              const target = mealTargets[type];
-              if (!target) return null;
-
-              return (
-                <div
-                  key={type}
-                  className="rounded-lg bg-black/25 border border-white/5 px-3 py-2 flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-gray-400">{MEAL_TYPE_LABELS[type]}</span>
-                    <span className="text-gray-500">{Math.round(target.share * 100)}%</span>
-                  </div>
-                  <div className="text-right text-gray-200">
-                    ~{target.calories} ккал · Б {target.protein}г · Ж {target.fat}г · У {target.carbs}г
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </motion.section>
-
-        {/* Фильтры */}
-        <motion.section
-          className="glass-card p-4 space-y-3"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          {/* Навигация по приёмам пищи */}
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex flex-wrap gap-2 text-xs">
-              <button
-                onClick={() => setSelectedType("all")}
-                className={`px-3 py-1.5 rounded-full border text-xs transition ${
-                  selectedType === "all"
-                    ? "bg-teal-500/20 border-teal-400 text-teal-200"
-                    : "bg-black/20 border-white/10 text-gray-300"
-                }`}
-              >
-                Все
-              </button>
-              {MEAL_TYPES_ORDER.map((t) => (
+          {/* Фильтры */}
+          <motion.section
+            className="glass-card px-4 py-4 space-y-3"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex flex-wrap gap-2 text-xs">
                 <button
-                  key={t}
-                  onClick={() => setSelectedType(t)}
+                  onClick={() => setSelectedType("all")}
                   className={`px-3 py-1.5 rounded-full border text-xs transition ${
-                    selectedType === t
-                      ? "bg-teal-500/20 border-teal-400 text-teal-200"
-                      : "bg-black/20 border-white/10 text-gray-300"
+                    selectedType === "all"
+                      ? "bg-[var(--accent-gold)] border-[var(--accent-gold)] text-white"
+                      : "bg-[var(--surface)] border-[var(--border-soft)] text-[var(--text-secondary)]"
                   }`}
                 >
-                  {MEAL_TYPE_LABELS[t]}
+                  Все
                 </button>
-              ))}
+                {MEAL_TYPES_ORDER.map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setSelectedType(t)}
+                    className={`px-3 py-1.5 rounded-full border text-xs transition ${
+                      selectedType === t
+                        ? "bg-[var(--accent-gold)] border-[var(--accent-gold)] text-white"
+                        : "bg-[var(--surface)] border-[var(--border-soft)] text-[var(--text-secondary)]"
+                    }`}
+                  >
+                    {MEAL_TYPE_LABELS[t]}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* Диапазон калорий */}
-          <div className="mt-2 flex items-center gap-3 text-xs">
-            <div className="flex items-center gap-1 text-gray-400">
-              <Filter className="w-4 h-4" />
-              <span>Калории / порция</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                inputMode="numeric"
-                className="w-20 bg-black/30 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-100 focus:outline-none focus:border-teal-400"
-                placeholder="от"
-                value={calorieMin}
-                onChange={(e) => setCalorieMin(e.target.value)}
-              />
-              <span className="text-gray-500">—</span>
-              <input
-                type="number"
-                inputMode="numeric"
-                className="w-20 bg-black/30 border border-gray-700 rounded-lg px-2 py-1 text-xs text-gray-100 focus:outline-none focus:border-teal-400"
-                placeholder="до"
-                value={calorieMax}
-                onChange={(e) => setCalorieMax(e.target.value)}
-              />
-              <span className="text-gray-500">ккал</span>
-            </div>
-          </div>
-        </motion.section>
-
-        {/* Список рецептов */}
-        <motion.section
-          className="space-y-3"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          {filteredMeals.length === 0 ? (
-            <div className="glass-card p-4 text-sm text-gray-400 text-center">
-              Нет рецептов под такой фильтр. Попробуй изменить условия.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {filteredMeals.map((mwn) => (
-                <MealCard
-                  key={mwn.meal.slug}
-                  meal={mwn.meal}
-                  calories={mwn.calories}
-                  protein={mwn.protein}
-                  fat={mwn.fat}
-                  carbs={mwn.carbs}
-                  isLocked={!!mwn.meal.proOnly && !isPro}
-                  target={mealTargets[mwn.meal.mealType]}
+            <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+              <div className="text-[var(--text-secondary)]">
+                Калории / порция
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="w-20 bg-[var(--surface)] border border-[var(--border-soft)] rounded-lg px-2 py-1 text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-gold)]"
+                  placeholder="от"
+                  value={calorieMin}
+                  onChange={(e) => setCalorieMin(e.target.value)}
                 />
-              ))}
+                <span className="text-[var(--text-muted)]">—</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  className="w-20 bg-[var(--surface)] border border-[var(--border-soft)] rounded-lg px-2 py-1 text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-gold)]"
+                  placeholder="до"
+                  value={calorieMax}
+                  onChange={(e) => setCalorieMax(e.target.value)}
+                />
+                <span className="text-[var(--text-muted)]">ккал</span>
+              </div>
             </div>
-          )}
-        </motion.section>
+          </motion.section>
+
+          {/* Список рецептов */}
+          <motion.section
+            className="space-y-3"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            {filteredMeals.length === 0 ? (
+              <div className="glass-card px-4 py-4 text-sm text-[var(--text-secondary)] text-center">
+                Нет рецептов под такой фильтр. Попробуй изменить условия.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {filteredMeals.map((mwn) => (
+                  <MealCard
+                    key={mwn.meal.slug}
+                    meal={mwn.meal}
+                    calories={mwn.calories}
+                    protein={mwn.protein}
+                    fat={mwn.fat}
+                    carbs={mwn.carbs}
+                    isLocked={!!mwn.meal.proOnly && !isPro}
+                    target={mealTargets[mwn.meal.mealType]}
+                  />
+                ))}
+              </div>
+            )}
+          </motion.section>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
-// ----- карточка рецепта -----
+// ====================== КАРТОЧКА РЕЦЕПТА ======================
 
 function MealCard(props: {
   meal: MealRecipe;
@@ -425,71 +423,66 @@ function MealCard(props: {
 }) {
   const { meal, calories, protein, fat, carbs, isLocked, target } = props;
 
-  const href = isLocked ? "/pro" : `/meals/${meal.slug}`;
+const href = isLocked
+  ? "/pro"
+  : `/meals/${meal.slug}${
+      target ? `?target=${encodeURIComponent(target.calories)}` : ""
+    }`;
+
 
   return (
     <Link href={href} className="block">
       <motion.div
-        className="glass-card p-4 h-full flex flex-col justify-between relative overflow-hidden"
-        whileHover={{ y: -3 }}
-        transition={{ type: "spring", stiffness: 260, damping: 20 }}
+        className="glass-card px-4 py-4 h-full flex flex-col justify-between relative overflow-hidden"
+        whileHover={{ y: -2 }}
+        transition={{ type: "spring", stiffness: 260, damping: 22 }}
       >
         {isLocked && (
-          <div className="absolute top-3 right-3 z-20 flex items-center gap-1 px-2 py-1 rounded-full bg-purple-600/15 border border-purple-400/60 text-[10px] text-purple-200">
-            <span className="uppercase tracking-wide">PRO</span>
+          <div className="absolute top-3 right-3 z-20 flex items-center gap-1 px-2 py-1 rounded-full bg-[var(--accent-gold)]/10 border border-[var(--accent-gold)] text-[10px] text-[var(--accent-gold)]">
+            <span className="uppercase">PRO</span>
           </div>
         )}
 
         <div
-          className={`flex items-start gap-3 mb-3 ${
-            isLocked ? "opacity-40" : ""
+          className={`flex flex-col gap-2 mb-2 ${
+            isLocked ? "opacity-60" : ""
           }`}
         >
-          <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-400/40 flex-shrink-0">
-            <UtensilsCrossed className="w-5 h-5 text-emerald-300" />
+          <div className="flex items-center gap-2 text-[11px] text-[var(--text-muted)] uppercase">
+            <span>{MEAL_TYPE_LABELS[meal.mealType]}</span>
           </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-[10px] uppercase text-teal-300">
-                {MEAL_TYPE_LABELS[meal.mealType]}
-              </span>
-            </div>
-            <h3 className="text-sm font-semibold text-gray-50 line-clamp-2">
-              {meal.title}
-            </h3>
-            {meal.subtitle && (
-              <p className="text-[11px] text-gray-400 mt-1 line-clamp-2">
-                {meal.subtitle}
-              </p>
-            )}
+          <h3 className="text-sm font-semibold text-[var(--text-primary)] line-clamp-2">
+            {meal.title}
+          </h3>
+          {meal.subtitle && (
+            <p className="text-[11px] text-[var(--text-secondary)] mt-1 line-clamp-2">
+              {meal.subtitle}
+            </p>
+          )}
 
-            {target && (
-              <p className="text-[11px] text-teal-100/90 bg-teal-500/10 border border-teal-500/20 rounded-lg px-2 py-1 mt-2">
-                Цель пресета: ~{target.calories} ккал. Граммовки пересчитаю под эту цель без дробных ингредиентов.
-              </p>
-            )}
-          </div>
+          {target && (
+            <p className="text-[11px] text-[var(--text-secondary)] bg-[var(--surface-muted)] border border-[var(--border-soft)] rounded-lg px-2 py-1 mt-2">
+              Цель для этого приёма пищи: ~{target.calories} ккал. Я подбираю
+              ближайший вариант порции к этой цели.
+            </p>
+          )}
         </div>
 
         <div
-          className={`flex items-center justify-between mt-1 ${
-            isLocked ? "opacity-40" : ""
+          className={`flex items-center justify-between mt-1 text-[11px] text-[var(--text-secondary)] ${
+            isLocked ? "opacity-60" : ""
           }`}
         >
-          <div className="flex items-center gap-2 text-xs text-gray-300">
-            <Flame className="w-4 h-4 text-orange-400" />
-            <span>{Math.round(calories)} ккал / порция</span>
-          </div>
-          <div className="text-[11px] text-gray-400">
+          <span>≈ {Math.round(calories)} ккал / порция</span>
+          <span>
             Б {Math.round(protein)}г · Ж {Math.round(fat)}г · У{" "}
             {Math.round(carbs)}г
-          </div>
+          </span>
         </div>
 
         {isLocked && (
-          <div className="absolute inset-0 bg-black/65 flex flex-col items-center justify-center text-center px-4">
-            <Lock className="w-6 h-6 text-purple-200 mb-2" />
-            <p className="text-[11px] text-gray-200 max-w-xs">
+          <div className="absolute inset-0 bg-black/55 flex flex-col items-center justify-center text-center px-4">
+            <p className="text-[11px] text-gray-100 max-w-xs">
               Это PRO-рецепт. Оформи PRO-тариф, чтобы открыть.
             </p>
           </div>

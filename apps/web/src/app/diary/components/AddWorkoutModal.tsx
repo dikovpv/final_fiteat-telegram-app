@@ -9,6 +9,7 @@ import {
   Search,
   Clock,
   Flame,
+  X,
 } from "lucide-react";
 import {
   DEFAULT_ENTRY,
@@ -19,7 +20,6 @@ import {
 } from "../diary-types";
 
 import { WORKOUT_TEMPLATES } from "../../workouts/workouts-data";
-
 
 export interface WorkoutData {
   id?: string;
@@ -39,16 +39,17 @@ interface AddWorkoutModalProps {
   onClose: () => void;
   onSave: (workout: WorkoutData) => void;
   // список готовых упражнений из раздела "Тренировки"
-  // можно не передавать — тогда вкладка "Готовые" не показывается
   readyWorkouts?: WorkoutData[];
 }
+
+const ACCENT_GOLD = "var(--accent-gold)";
 
 export default function AddWorkoutModal({
   onClose,
   onSave,
   readyWorkouts = [],
 }: AddWorkoutModalProps) {
-
+  // базовые упражнения из шаблонов программ
   const baseWorkouts = useMemo<WorkoutData[]>(
     () =>
       WORKOUT_TEMPLATES.flatMap((plan) =>
@@ -66,11 +67,12 @@ export default function AddWorkoutModal({
     []
   );
 
-  const mergeWorkouts = (...lists: WorkoutData[][]) => {
+  const mergeWorkouts = (...lists: WorkoutData[][]): WorkoutData[] => {
     const map = new Map<string, WorkoutData>();
 
     lists.flat().forEach((workout) => {
-      const id = workout?.id || workout?.exerciseSlug || workout?.name;
+      if (!workout) return;
+      const id = workout.id || workout.exerciseSlug || workout.name;
       if (id) map.set(id, workout);
     });
 
@@ -79,7 +81,6 @@ export default function AddWorkoutModal({
 
   const [availableWorkouts, setAvailableWorkouts] = useState<WorkoutData[]>(() =>
     mergeWorkouts(baseWorkouts, readyWorkouts)
-
   );
   const hasReadyWorkouts = availableWorkouts.length > 0;
 
@@ -110,19 +111,16 @@ export default function AddWorkoutModal({
     { id: "flexibility", name: "Растяжка", icon: "🧘" },
   ];
 
-  // Фильтрация упражнений из приложения
+  // Фильтрация упражнений
   const filteredWorkouts = useMemo(
     () =>
       hasReadyWorkouts
         ? availableWorkouts.filter((workout) => {
-            const matchesSearch = [
-              workout.name || "",
-              workout.planTitle || "",
-            ]
+            const text = [workout.name || "", workout.planTitle || ""]
               .join(" ")
-
-              .toLowerCase()
-              .includes(searchQuery.toLowerCase());
+              .toLowerCase();
+            const query = searchQuery.toLowerCase();
+            const matchesSearch = text.includes(query);
             const matchesType =
               selectedType === "all" || workout.type === selectedType;
             return matchesSearch && matchesType;
@@ -137,11 +135,11 @@ export default function AddWorkoutModal({
       const saved = localStorage.getItem("fitEatAddedWorkouts");
       if (saved) setAddedWorkouts(JSON.parse(saved));
     } catch {
-      // игнор
+      // ignore
     }
   }, []);
 
-  // Подтягиваем упражнения из дневника для выбранной даты
+  // Подмешиваем упражнения из дневника для выбранной даты
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -162,32 +160,31 @@ export default function AddWorkoutModal({
         mergeWorkouts(baseWorkouts, readyWorkouts, prev, workouts)
       );
     } catch {
-      // просто пропускаем ошибку
+      // ignore
     }
   }, [baseWorkouts, readyWorkouts]);
 
+  // следим за изменением readyWorkouts
   useEffect(() => {
     setAvailableWorkouts((prev) =>
       mergeWorkouts(baseWorkouts, readyWorkouts, prev)
     );
   }, [baseWorkouts, readyWorkouts]);
 
-  useEffect(() => {
-    if (hasReadyWorkouts && tab !== "ready") {
-      setTab("ready");
-    }
-  }, [hasReadyWorkouts, tab]);
+  // ВАЖНО: не форсим таб "ready", чтобы можно было пользоваться вкладками
+  // (как мы уже исправили в модалке блюд)
 
   const saveAdded = (data: WorkoutData[]) => {
     try {
       localStorage.setItem("fitEatAddedWorkouts", JSON.stringify(data));
     } catch {
-      // игнор
+      // ignore
     }
   };
 
-  const handleChange = (e: any) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
+
     if (name === "name") {
       setForm((prev) => ({ ...prev, name: value }));
       return;
@@ -204,7 +201,7 @@ export default function AddWorkoutModal({
     setTimeout(() => {
       onClose();
       setIsClosing(false);
-    }, 350);
+    }, 250);
   };
 
   const handleManualSave = () => {
@@ -213,7 +210,7 @@ export default function AddWorkoutModal({
       return;
     }
 
-    // Расчет калорий на основе типа тренировки (грубая оценка, но лучше чем ничего)
+    // Грубая оценка калорий, если не указали вручную
     let calories = form.calories ?? 0;
 
     if (!calories) {
@@ -246,107 +243,145 @@ export default function AddWorkoutModal({
     saveAdded(updated);
   };
 
-  // Вкладки динамически: скрываем "Готовые", если нет readyWorkouts
+  // Вкладки: визуально такие же, как в AddMealModal
   const tabs: { key: typeof tab; label: string }[] = [
-    ...(hasReadyWorkouts ? [{ key: "ready" as const, label: "Готовые" }] : []),
+    ...(hasReadyWorkouts ? [{ key: "ready" as const, label: "Упражнения" }] : []),
     { key: "added", label: "Мои упражнения" },
-    { key: "manual", label: "Создать" },
+    { key: "manual", label: "Вручную" },
   ];
 
   return (
     <AnimatePresence mode="wait">
       {!isClosing && (
         <motion.div
-          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex justify-center items-end"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          transition={{ duration: 0.3 }}
           onClick={closeWithAnimation}
         >
           <motion.div
             onClick={(e) => e.stopPropagation()}
-            initial={{ y: "100%" }}
-            animate={{ y: 0 }}
-            exit={{ y: "100%" }}
-            transition={{ duration: 0.35, ease: "easeInOut" }}
-            className="bg-gradient-to-b from-gray-900 to-black w-full max-w-md rounded-t-3xl shadow-2xl h-[90vh] flex flex-col border border-gray-700"
+            initial={{ y: 40, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 40, opacity: 0 }}
+            transition={{ duration: 0.25, ease: "easeOut" }}
+            className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl overflow-hidden"
           >
-            {/* Верхняя панель */}
-            <div className="flex justify-center items-center relative border-b border-gray-700 py-4">
+            {/* Золотая шапка как в модалке блюд */}
+            <div
+              className="px-5 py-4 flex items-center justify-between text-white"
+              style={{ backgroundColor: ACCENT_GOLD }}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center">
+                  <Dumbbell className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base sm:text-lg font-semibold">
+                    Добавить упражнение
+                  </h2>
+                  <p className="text-xs sm:text-[13px] text-white/85">
+                    Выберите готовое или добавьте своё упражнение.
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={closeWithAnimation}
-                className="absolute left-6 text-gray-400 hover:text-white text-xl transition"
+                className="p-1 rounded-full hover:bg-black/10 transition text-white"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
-              <h2 className="text-xl font-bold text-white">
-                Добавить упражнение
-              </h2>
             </div>
 
-            {/* Вкладки */}
-            <div className="flex border-b border-gray-700 text-sm font-medium overflow-x-auto">
-              {tabs.map((t) => (
-                <button
-                  key={t.key}
-                  onClick={() => setTab(t.key)}
-                  className={`flex-1 py-3 px-2 transition whitespace-nowrap ${
-                    tab === t.key
-                      ? "border-b-2 border-teal-400 text-teal-400"
-                      : "text-gray-400 hover:text-white"
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
+            {/* Контент модалки */}
+            <div className="px-5 pt-3 pb-5 max-h-[80vh] overflow-y-auto bg-[var(--bg)]/40">
+              {/* Вкладки */}
+              <div className="flex border-b border-[var(--border-soft)] text-sm font-medium overflow-x-auto mb-3">
+                {tabs.map((t) => (
+                  <button
+                    key={t.key}
+                    type="button"
+                    onClick={() => setTab(t.key)}
+                    className={`relative px-3 py-2 whitespace-nowrap transition-colors ${
+                      tab === t.key
+                        ? "text-[var(--text-primary)]"
+                        : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                    }`}
+                    style={
+                      tab === t.key
+                        ? { color: ACCENT_GOLD }
+                        : undefined
+                    }
+                  >
+                    {t.label}
+                    {tab === t.key && (
+                      <span
+                        className="absolute left-0 right-0 -bottom-[1px] h-[2px] rounded-full"
+                        style={{ backgroundColor: ACCENT_GOLD }}
+                      />
+                    )}
+                  </button>
+                ))}
+              </div>
 
-            {/* Контент */}
-            <div className="flex-1 overflow-y-auto px-5 py-4">
-              {/* Поиск и фильтры для вкладки "Готовые" */}
+              {/* Поиск и фильтр для "Упражнений" */}
               {tab === "ready" && hasReadyWorkouts && (
                 <div className="mb-4 space-y-3">
                   <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[var(--text-tertiary)]" />
                     <input
                       type="text"
                       placeholder="Поиск упражнений..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full bg-black/30 border border-gray-600 rounded-lg pl-10 pr-4 py-2 text-white focus:border-teal-400 focus:outline-none"
+                      className="w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] pl-9 pr-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-transparent"
+                      style={{
+                        outlineColor: ACCENT_GOLD,
+                        boxShadow: "0 0 0 1px transparent",
+                      }}
                     />
                   </div>
 
-                  <div className="flex gap-2 overflow-x-auto pb-2">
-                    {workoutTypes.map((type) => (
-                      <button
-                        key={type.id}
-                        onClick={() => setSelectedType(type.id)}
-                        className={`flex items-center gap-1 px-3 py-1 rounded-full text-xs whitespace-nowrap transition ${
-                          selectedType === type.id
-                            ? "bg-teal-500 text-black"
-                            : "bg-black/30 text-gray-400 hover:bg-black/50"
-                        }`}
-                      >
-                        <span>{type.icon}</span>
-                        <span>{type.name}</span>
-                      </button>
-                    ))}
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {workoutTypes.map((type) => {
+                      const active = selectedType === type.id;
+                      return (
+                        <button
+                          key={type.id}
+                          type="button"
+                          onClick={() => setSelectedType(type.id)}
+                          className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs whitespace-nowrap border transition ${
+                            active
+                              ? "text-white"
+                              : "bg-[var(--surface)] border-[var(--border-soft)] text-[var(--text-secondary)] hover:border-[var(--text-secondary)]"
+                          }`}
+                          style={
+                            active
+                              ? {
+                                  backgroundColor: ACCENT_GOLD,
+                                  borderColor: ACCENT_GOLD,
+                                }
+                              : undefined
+                          }
+                        >
+                          <span>{type.icon}</span>
+                          <span>{type.name}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
-              {/* Содержимое вкладок */}
+              {/* Вкладка "Упражнения" */}
               {tab === "ready" && hasReadyWorkouts && (
                 <div className="space-y-3">
                   {filteredWorkouts.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Search className="w-12 h-12 mx-auto mb-3 text-gray-600" />
-                      <p className="text-gray-400">Упражнения не найдены</p>
-                      <p className="text-sm text-gray-500 mt-1">
-                        Попробуйте изменить поиск или фильтр
-                      </p>
+                    <div className="text-center py-8 text-sm text-[var(--text-secondary)]">
+                      <Search className="w-10 h-10 mx-auto mb-2 text-[var(--border-soft)]" />
+                      Упражнения не найдены. Попробуйте изменить поиск или
+                      фильтр.
                     </div>
                   ) : (
                     filteredWorkouts.map((workout, i) => (
@@ -363,6 +398,7 @@ export default function AddWorkoutModal({
                 </div>
               )}
 
+              {/* Вкладка "Мои упражнения" */}
               {tab === "added" && (
                 <motion.div
                   key="added"
@@ -370,14 +406,9 @@ export default function AddWorkoutModal({
                   animate={{ opacity: 1 }}
                 >
                   {addedWorkouts.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Dumbbell className="w-12 h-12 mx-auto mb-3 text-gray-600" />
-                      <p className="text-gray-400 mb-2">
-                        Здесь появятся ваши упражнения
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        💪 Создавайте упражнения и они сохранятся здесь
-                      </p>
+                    <div className="text-center py-8 text-sm text-[var(--text-secondary)]">
+                      <Dumbbell className="w-10 h-10 mx-auto mb-2 text-[var(--border-soft)]" />
+                      Здесь появятся упражнения, которые вы создадите вручную.
                     </div>
                   ) : (
                     addedWorkouts.map((workout, i) => (
@@ -396,27 +427,22 @@ export default function AddWorkoutModal({
                 </motion.div>
               )}
 
+              {/* Вкладка "Вручную" */}
               {tab === "manual" && (
                 <motion.div
                   key="manual"
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.3 }}
+                  transition={{ duration: 0.2 }}
                   className="space-y-4"
                 >
-                  <div className="text-center py-4">
-                    <Plus className="w-12 h-12 mx-auto mb-3 text-teal-400" />
-                    <h3 className="text-lg font-semibold text-white mb-2">
-                      Создать упражнение
-                    </h3>
-                    <p className="text-sm text-gray-400">
-                      Введите параметры упражнения и оно сохранится в вашем
-                      списке
-                    </p>
+                  <div className="text-sm text-[var(--text-secondary)]">
+                    Создайте своё упражнение с любыми параметрами. Оно появится
+                    в разделе «Мои упражнения».
                   </div>
 
                   <div>
-                    <label className="block text-sm text-gray-300 mb-2">
+                    <label className="block text-sm mb-1 text-[var(--text-primary)]">
                       Название упражнения *
                     </label>
                     <input
@@ -425,12 +451,13 @@ export default function AddWorkoutModal({
                       placeholder="Например: Тяга к поясу"
                       value={form.name}
                       onChange={handleChange}
-                      className="w-full bg-black/30 border border-gray-600 rounded-lg px-3 py-3 text-white focus:border-teal-400 focus:outline-none"
+                      className="w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-soft)]"
+                      style={{ outlineColor: ACCENT_GOLD }}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-sm text-gray-300 mb-2">
+                    <label className="block text-sm mb-1 text-[var(--text-primary)]">
                       Тип упражнения
                     </label>
                     <select
@@ -442,7 +469,8 @@ export default function AddWorkoutModal({
                           type: e.target.value as WorkoutData["type"],
                         }))
                       }
-                      className="w-full bg-black/30 border border-gray-600 rounded-lg px-3 py-3 text-white focus:border-teal-400 focus:outline-none"
+                      className="w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-soft)]"
+                      style={{ outlineColor: ACCENT_GOLD }}
                     >
                       <option value="strength">Силовое</option>
                       <option value="cardio">Кардио</option>
@@ -452,13 +480,13 @@ export default function AddWorkoutModal({
 
                   <div className="grid grid-cols-3 gap-3">
                     {[
-                      { key: "sets", name: "Подходы" },
-                      { key: "reps", name: "Повторы" },
-                      { key: "weight", name: "Вес (кг)" },
+                      { key: "sets", label: "Подходы" },
+                      { key: "reps", label: "Повторы" },
+                      { key: "weight", label: "Вес (кг)" },
                     ].map((field) => (
                       <div key={field.key}>
-                        <label className="block text-sm text-gray-300 mb-2">
-                          {field.name}
+                        <label className="block text-sm mb-1 text-[var(--text-primary)]">
+                          {field.label}
                         </label>
                         <input
                           name={field.key}
@@ -468,7 +496,8 @@ export default function AddWorkoutModal({
                           }
                           value={(form as any)[field.key] ?? ""}
                           onChange={handleChange}
-                          className="w-full bg-black/30 border border-gray-600 rounded-lg px-3 py-3 text-white focus:border-teal-400 focus:outline-none"
+                          className="w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-soft)]"
+                          style={{ outlineColor: ACCENT_GOLD }}
                         />
                       </div>
                     ))}
@@ -476,8 +505,8 @@ export default function AddWorkoutModal({
 
                   {form.type !== "strength" && (
                     <div>
-                      <label className="block text-sm text-gray-300 mb-2">
-                        Длительность (минуты)
+                      <label className="block text-sm mb-1 text-[var(--text-primary)]">
+                        Длительность (мин)
                       </label>
                       <input
                         name="duration"
@@ -485,16 +514,19 @@ export default function AddWorkoutModal({
                         placeholder="15"
                         value={form.duration ?? ""}
                         onChange={handleChange}
-                        className="w-full bg-black/30 border border-gray-600 rounded-lg px-3 py-3 text-white focus:border-teal-400 focus:outline-none"
+                        className="w-full rounded-xl border border-[var(--border-soft)] bg-[var(--surface)] px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-soft)]"
+                        style={{ outlineColor: ACCENT_GOLD }}
                       />
                     </div>
                   )}
 
                   <button
+                    type="button"
                     onClick={handleManualSave}
-                    className="w-full mt-6 bg-gradient-to-r from-teal-500 to-blue-500 text-white py-3 rounded-xl font-semibold hover:from-teal-600 hover:to-blue-600 transition-all"
+                    className="w-full mt-2 rounded-xl text-white text-sm font-semibold py-2.5 hover:brightness-105 transition"
+                    style={{ backgroundColor: ACCENT_GOLD }}
                   >
-                    Добавить упражнение
+                    Добавить в тренировку
                   </button>
                 </motion.div>
               )}
@@ -506,7 +538,7 @@ export default function AddWorkoutModal({
   );
 }
 
-// Компонент элемента упражнения
+// Элемент упражнения
 function WorkoutItem({
   workout,
   onSelect,
@@ -531,45 +563,34 @@ function WorkoutItem({
     }
   };
 
-  const getTypeColor = (type?: string) => {
-    switch (type) {
-      case "strength":
-        return "text-orange-400";
-      case "cardio":
-        return "text-red-400";
-      case "flexibility":
-        return "text-purple-400";
-      default:
-        return "text-green-400";
-    }
-  };
-
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, scale: 0.9 }}
+      initial={{ opacity: 0, scale: 0.97 }}
       animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      whileHover={{ scale: 1.02 }}
-      className="border border-gray-600 rounded-xl p-3 hover:border-teal-400 transition-all cursor-pointer bg-black/20 hover:bg-black/30"
+      exit={{ opacity: 0, scale: 0.97 }}
+      whileHover={{ scale: 1.01 }}
+      className="border border-[var(--border-soft)] rounded-xl px-3.5 py-3 bg-[var(--surface)] hover:border-[var(--border-strong)] transition cursor-pointer"
       onClick={onSelect}
     >
-      <div className="flex justify-between items-start">
+      <div className="flex justify-between items-start gap-3">
         <div className="flex-1">
           <div className="flex items-center gap-2 mb-1">
             <span className="text-lg">{getTypeIcon(workout.type)}</span>
-            <p className="font-semibold text-white">{workout.name}</p>
+            <p className="font-semibold text-sm sm:text-base text-[var(--text-primary)]">
+              {workout.name}
+            </p>
           </div>
 
           {workout.planTitle && (
-            <p className="text-[11px] text-gray-500 mb-1">
+            <p className="text-[11px] text-[var(--text-tertiary)] mb-1">
               План: {workout.planTitle}
             </p>
           )}
 
-          <div className="flex items-center gap-3 text-xs text-gray-400">
+          <div className="flex flex-wrap items-center gap-3 text-[11px] sm:text-xs text-[var(--text-secondary)]">
             {workout.type && (
-              <span className={getTypeColor(workout.type)}>
+              <span>
                 {workout.type === "strength" && "Силовое"}
                 {workout.type === "cardio" && "Кардио"}
                 {workout.type === "flexibility" && "Растяжка"}
@@ -579,7 +600,7 @@ function WorkoutItem({
             {workout.type === "strength" ? (
               <span>
                 {workout.sets}×{workout.reps}{" "}
-                {workout.weight ? `• ${workout.weight}кг` : ""}
+                {workout.weight ? `• ${workout.weight} кг` : ""}
               </span>
             ) : workout.duration ? (
               <span className="flex items-center gap-1">
@@ -597,19 +618,20 @@ function WorkoutItem({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 ml-3">
+        <div className="flex items-center gap-2 ml-1">
           {showDelete && onDelete && (
             <button
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
                 onDelete();
               }}
-              className="text-gray-400 hover:text-red-400 transition"
+              className="p-1 rounded-full hover:bg-[var(--surface-muted)] text-[var(--danger)] transition"
             >
               <Trash2 className="w-4 h-4" />
             </button>
           )}
-          <Dumbbell className="w-5 h-5 text-teal-400" />
+          <Dumbbell className="w-5 h-5 text-[var(--accent-gold)]" />
         </div>
       </div>
     </motion.div>

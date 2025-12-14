@@ -2,18 +2,15 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 
 import SurveyForm from "./components/SurveyForm";
+import PageHeader from "./components/PageHeader";
 
 import {
   Activity,
   Target,
-  TrendingUp,
-  Zap,
-  Flame,
-  Droplets,
-  Wheat,
   Weight,
   User,
   Trophy,
@@ -28,19 +25,16 @@ import {
   type GoalType,
 } from "@/lib/nutrition";
 
-import {
-  DEFAULT_ENTRY,
-  DIARY_STORAGE_PREFIX,
-} from "./diary/diary-types";
+import { DEFAULT_ENTRY, DIARY_STORAGE_PREFIX } from "./diary/diary-types";
 
-// ================== ТИПЫ ДЛЯ НЕДЕЛЬНЫХ ПРИВЫЧЕК ==================
+// ================== ТИПЫ ==================
 
 type DayStatus = "success" | "fail" | "rest" | null;
 
 type WeeklyDayMeta = {
   date: string;
-  weekday: string; // ПН, ВТ, …
-  day: string; // 17, 18, …
+  weekday: string;
+  day: string;
 };
 
 type WeeklyStats = {
@@ -59,7 +53,6 @@ type TodaySleepInfo = {
 
 // ================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==================
 
-// Локальная дата в формате YYYY-MM-DD (совпадает с value у <input type="date">)
 function getLocalISODate(date: Date = new Date()): string {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -67,7 +60,6 @@ function getLocalISODate(date: Date = new Date()): string {
   return `${y}-${m}-${d}`;
 }
 
-// Прочитать дневник за день
 function getDiaryFor(dateISO: string) {
   if (typeof window === "undefined") return null;
   const key = `${DIARY_STORAGE_PREFIX}${dateISO}`;
@@ -80,7 +72,6 @@ function getDiaryFor(dateISO: string) {
   }
 }
 
-// Итоги по БЖУ за день (по отмеченным done)
 function getDiaryTotalsFor(dateISO: string) {
   if (typeof window === "undefined") {
     return { calories: 0, protein: 0, fat: 0, carbs: 0 };
@@ -100,7 +91,7 @@ function getDiaryTotalsFor(dateISO: string) {
         }
         return acc;
       },
-      { calories: 0, protein: 0, fat: 0, carbs: 0 }
+      { calories: 0, protein: 0, fat: 0, carbs: 0 },
     );
     return totals;
   } catch {
@@ -108,7 +99,6 @@ function getDiaryTotalsFor(dateISO: string) {
   }
 }
 
-// Собираем профиль пользователя из данных формы и/или прошлых данных
 function buildProfileFromForm(data: any, prev?: any): ProfileInput | null {
   const pick = (keys: string[], fallback?: any) => {
     for (const k of keys) {
@@ -124,14 +114,12 @@ function buildProfileFromForm(data: any, prev?: any): ProfileInput | null {
 
   const rawAge = Number(pick(["age", "ageYears", "userAge"], undefined));
   const rawHeight = Number(
-    pick(["height", "heightCm", "height_cm"], undefined)
+    pick(["height", "heightCm", "height_cm"], undefined),
   );
   const rawWeight = Number(pick(["weight", "currentWeight"], undefined));
 
   let rawSex = pick(["sex", "gender"], "male");
-  if (typeof rawSex === "string") {
-    rawSex = rawSex.toLowerCase();
-  }
+  if (typeof rawSex === "string") rawSex = rawSex.toLowerCase();
 
   let sex: Sex = "male";
   if (
@@ -163,13 +151,10 @@ function buildProfileFromForm(data: any, prev?: any): ProfileInput | null {
   let goal: GoalType = "lose";
   const g = String(rawGoal).toLowerCase();
   if (["lose", "fatloss", "снижение", "похудение"].includes(g)) goal = "lose";
-  else if (["maintain", "держать", "поддержка"].includes(g))
-    goal = "maintain";
+  else if (["maintain", "держать", "поддержка"].includes(g)) goal = "maintain";
   else if (["gain", "bulk", "набор"].includes(g)) goal = "gain";
 
-  if (!rawAge || !rawHeight || !rawWeight) {
-    return null;
-  }
+  if (!rawAge || !rawHeight || !rawWeight) return null;
 
   return {
     age: rawAge,
@@ -195,11 +180,9 @@ function translateName(key: string) {
     calf: "Икра",
     weight: "Вес",
   };
-
   return map[key] || key;
 }
 
-// ---- формула Navy, авто-% жира ----
 function computeBodyFatNavy(body: any, profile: any): number | null {
   if (!profile) return null;
 
@@ -235,6 +218,141 @@ function computeBodyFatNavy(body: any, profile: any): number | null {
   return Math.round(bf * 10) / 10;
 }
 
+// ================== UI-КОМПОНЕНТЫ / ПРОГРЕСС КБЖУ ==================
+
+function MacroProgressRing({
+  item,
+}: {
+  item: {
+    shortLabel: string;
+    current: number;
+    goal: number;
+    percent: number;
+    color: string;
+  };
+}) {
+  const radius = 18;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (item.percent / 100) * circumference;
+
+  const isActive = item.percent > 0;
+
+  return (
+    <div className="flex flex-col items-center text-center text-xs">
+      <div className="relative w-14 h-14 mb-1">
+        <svg className="w-14 h-14 -rotate-90">
+          <circle
+            cx="28"
+            cy="28"
+            r={radius}
+            stroke="rgba(148, 163, 184, 0.25)"
+            strokeWidth="4"
+            fill="none"
+          />
+          {isActive && (
+            <circle
+              cx="28"
+              cy="28"
+              r={radius}
+              stroke={item.color}
+              strokeWidth="4"
+              fill="none"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={offset}
+            />
+          )}
+        </svg>
+        <div className="absolute inset-0 flex items-center justify-center">
+          <span className="text-[11px] font-semibold text-gray-900 dark:text-gray-100">
+            {item.shortLabel}
+          </span>
+        </div>
+      </div>
+
+      <div className="text-[11px] text-gray-500 dark:text-gray-400">
+        {Math.round(item.current)}/{Math.round(item.goal)}
+      </div>
+      <div className="text-xs font-semibold text-gray-900 dark:text-gray-100">
+        {item.percent}%
+      </div>
+    </div>
+  );
+}
+
+function TodayNutritionProgressCard(props: {
+  calories: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+  caloriesGoal: number;
+  proteinGoal: number;
+  fatGoal: number;
+  carbsGoal: number;
+}) {
+  const {
+    calories,
+    protein,
+    fat,
+    carbs,
+    caloriesGoal,
+    proteinGoal,
+    fatGoal,
+    carbsGoal,
+  } = props;
+
+  const getPercent = (current: number, goal: number) =>
+    goal > 0 ? Math.min(100, Math.round((current / goal) * 100)) : 0;
+
+  const items = [
+    {
+      key: "calories",
+      shortLabel: "К",
+      current: calories,
+      goal: caloriesGoal,
+      color: "var(--accent-gold)",
+    },
+    {
+      key: "protein",
+      shortLabel: "Б",
+      current: protein,
+      goal: proteinGoal,
+      color: "var(--accent-gold)",
+    },
+    {
+      key: "fat",
+      shortLabel: "Ж",
+      current: fat,
+      goal: fatGoal,
+      color: "var(--accent-gold)",
+    },
+    {
+      key: "carbs",
+      shortLabel: "У",
+      current: carbs,
+      goal: carbsGoal,
+      color: "var(--accent-gold)",
+    },
+  ].map((i) => ({
+    ...i,
+    percent: getPercent(i.current, i.goal),
+  }));
+
+  return (
+    <section className="glass-card p-4">
+      <h2 className="text-base font-semibold text-center text-gray-900 dark:text-gray-100 mb-3">
+        Сегодняшний прогресс
+      </h2>
+
+      <div className="grid grid-cols-4 gap-3">
+        {items.map((item) => (
+          <MacroProgressRing key={item.key} item={item} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 // ================== ГЛАВНАЯ СТРАНИЦА ==================
 
 export default function HomePage() {
@@ -242,6 +360,7 @@ export default function HomePage() {
   const [showForm, setShowForm] = useState(false);
   const [showMeasurements, setShowMeasurements] = useState(false);
   const [telegramUser, setTelegramUser] = useState<any>(null);
+
   const [todayTotals, setTodayTotals] = useState({
     calories: 0,
     protein: 0,
@@ -264,7 +383,7 @@ export default function HomePage() {
     sleep: Array(7).fill(null),
   });
 
-  // ---------- Обновление дневных КБЖУ, воды и сна при фокусе окна ----------
+  // ---------- Обновление дневных данных ----------
   useEffect(() => {
     const updateFromDiary = () => {
       const todayISO = getLocalISODate();
@@ -329,7 +448,7 @@ export default function HomePage() {
     if (saved) setUserData(JSON.parse(saved));
   }, []);
 
-  // ---------- Флаг "открыть анкету" из профиля ----------
+  // ---------- Флаг открытия анкеты с профиля ----------
   useEffect(() => {
     if (typeof window === "undefined") return;
     const flag = localStorage.getItem("fitEatOpenSurveyOnHome");
@@ -346,18 +465,17 @@ export default function HomePage() {
       localStorage.setItem("fitEatUserData", JSON.stringify(userData));
   }, [userData]);
 
-  // ---------- Недельные привычки по дневнику ----------
+  // ---------- Недельные привычки ----------
   useEffect(() => {
     const today = new Date();
 
-    // формируем массив метаданных по дням (подписи над квадратиками)
     const daysMeta: WeeklyDayMeta[] = [];
     for (let offset = 6; offset >= 0; offset--) {
       const d = new Date(today);
       d.setDate(today.getDate() - offset);
       const dateISO = d.toISOString().split("T")[0];
 
-      const weekdayIndex = d.getDay(); // 0..6
+      const weekdayIndex = d.getDay();
       const weekdayNames = ["ВС", "ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ"];
       const weekday = weekdayNames[weekdayIndex] || "";
 
@@ -368,7 +486,6 @@ export default function HomePage() {
       });
     }
 
-    // если профиля нет — просто показываем пустую статистику, но с датами
     if (!userData) {
       setWeeklyStats({
         days: daysMeta,
@@ -392,7 +509,7 @@ export default function HomePage() {
       const dateISO = daysMeta[i].date;
       const diary: any = getDiaryFor(dateISO) || {};
 
-      // ---------- ПИТАНИЕ ----------
+      // питание
       const totals = getDiaryTotalsFor(dateISO);
       const cal = totals.calories || 0;
       const prot = totals.protein || 0;
@@ -410,7 +527,7 @@ export default function HomePage() {
         }
       }
 
-      // ---------- ТРЕНИРОВКИ ----------
+      // тренировки
       if (diary.isRestDay) {
         workouts.push("rest");
       } else if (!diary.workouts || diary.workouts.length === 0) {
@@ -426,7 +543,7 @@ export default function HomePage() {
         }
       }
 
-      // ---------- ВОДА ----------
+      // вода
       const waterVal =
         typeof diary.water === "number" && !isNaN(diary.water)
           ? diary.water
@@ -434,11 +551,11 @@ export default function HomePage() {
       if (!waterVal) {
         water.push(null);
       } else {
-        const waterPct = waterVal / 2.5; // цель 2.5л
+        const waterPct = waterVal / 2.5;
         water.push(waterPct >= 0.85 ? "success" : "fail");
       }
 
-      // ---------- СОН ----------
+      // сон
       const sleepData = diary.sleep || {};
       if (!sleepData.start || !sleepData.end) {
         sleep.push(null);
@@ -448,12 +565,7 @@ export default function HomePage() {
         let minutes = eh * 60 + em - (sh * 60 + sm);
         if (minutes < 0) minutes += 1440;
         const hours = minutes / 60;
-
-        if (hours >= 7) {
-          sleep.push("success");
-        } else {
-          sleep.push("fail");
-        }
+        sleep.push(hours >= 7 ? "success" : "fail");
       }
     }
 
@@ -468,107 +580,73 @@ export default function HomePage() {
 
   // ================== ОБРАБОТЧИКИ ФОРМ ==================
 
-  // анкета (стартовые вводные / их изменение)
-  // ================== ОБРАБОТЧИКИ ФОРМ ==================
+  const handleFormSubmit = (data: any) => {
+    setUserData((prev: any) => {
+      const isFirstSetup = !prev;
+      const hasHistory = !!prev?.measurementsHistory?.length || !!prev?.body;
 
-const handleFormSubmit = (data: any) => {
-  setUserData((prev: any) => {
-    const isFirstSetup = !prev; // первый запуск, истории ещё нет
-    const hasHistory =
-      !!prev?.measurementsHistory?.length || !!prev?.body; // уже есть текущие замеры
-
-    // --- профиль для расчёта КБЖУ ---
-
-    // ВАЖНО: при изменении стартовых
-    // используем для профиля ТЕКУЩИЙ вес, а не новый стартовый
-    const profileSource = {
-      ...data,
-      weight: hasHistory && prev?.weight ? prev.weight : data.weight,
-    };
-
-    const profile = buildProfileFromForm(profileSource, prev);
-    const macros = profile ? calculateMacrosForUser(profile) : null;
-
-    // --- базовый объект, который будем наполнять ---
-
-    const next: any = {
-      ...prev,
-
-      // дубли наверху (чтобы не потерять старое поведение)
-      sex: data.sex,
-      age: data.age,
-      height: data.height,
-      activityLevel: data.activityLevel,
-      goal: data.goal,
-
-      // цели (можно не трогать, если в анкете пусто)
-      targetWeight:
-        data.targetWeight !== undefined && data.targetWeight !== ""
-          ? data.targetWeight
-          : prev?.targetWeight,
-      bodyGoal: data.bodyGoal || prev?.bodyGoal,
-    };
-
-    // --- стартовые и текущие замеры / вес ---
-
-    if (isFirstSetup || !hasHistory) {
-      // Нет истории — старт = текущие
-      next.weightStart = data.weight;
-      next.weight = data.weight;
-
-      next.bodyStart = data.body || null;
-      next.body = data.body || null;
-    } else {
-      // История уже есть — меняем только старт
-      next.weightStart =
-        data.weight !== undefined && data.weight !== ""
-          ? data.weight
-          : prev?.weightStart ?? prev?.weight;
-
-      next.bodyStart = data.body || prev?.bodyStart || null;
-
-      // ТЕКУЩИЕ значения специально НЕ трогаем:
-      // next.weight = prev.weight;
-      // next.body   = prev.body;
-    }
-
-    // --- КБЖУ и профиль ---
-
-    if (macros && profile) {
-      next.calories = macros.calories;
-      next.proteinGoal = macros.proteinGoal;
-      next.fatGoal = macros.fatGoal;
-      next.carbsGoal = macros.carbsGoal;
-
-      next.profile = {
-        ...(prev?.profile || {}),
-        ...profile,
-        // В профиле вес = текущий, если он уже есть
-        weightKg:
-          hasHistory && prev?.weight
-            ? prev.weight
-            : profile.weightKg,
+      const profileSource = {
+        ...data,
+        weight: hasHistory && prev?.weight ? prev.weight : data.weight,
       };
-    }
 
-    return next;
-  });
+      const profile = buildProfileFromForm(profileSource, prev);
+      const macros = profile ? calculateMacrosForUser(profile) : null;
 
-  setShowForm(false);
-};
+      const next: any = {
+        ...prev,
+        sex: data.sex,
+        age: data.age,
+        height: data.height,
+        activityLevel: data.activityLevel,
+        goal: data.goal,
+        targetWeight:
+          data.targetWeight !== undefined && data.targetWeight !== ""
+            ? data.targetWeight
+            : prev?.targetWeight,
+        bodyGoal: data.bodyGoal || prev?.bodyGoal,
+      };
 
+      if (isFirstSetup || !hasHistory) {
+        next.weightStart = data.weight;
+        next.weight = data.weight;
+        next.bodyStart = data.body || null;
+        next.body = data.body || null;
+      } else {
+        next.weightStart =
+          data.weight !== undefined && data.weight !== ""
+            ? data.weight
+            : prev?.weightStart ?? prev?.weight;
+        next.bodyStart = data.body || prev?.bodyStart || null;
+      }
 
-  // новые замеры (текущие)
+      if (macros && profile) {
+        next.calories = macros.calories;
+        next.proteinGoal = macros.proteinGoal;
+        next.fatGoal = macros.fatGoal;
+        next.carbsGoal = macros.carbsGoal;
+
+        next.profile = {
+          ...(prev?.profile || {}),
+          ...profile,
+          weightKg: hasHistory && prev?.weight ? prev.weight : profile.weightKg,
+        };
+      }
+
+      return next;
+    });
+
+    setShowForm(false);
+  };
+
   const handleSaveMeasurements = (newData: any) => {
     const date = newData.date || new Date().toISOString();
 
-    // 1. Новый актуальный вес
     const newWeight =
       typeof newData.weight === "number" && !isNaN(newData.weight)
         ? newData.weight
         : userData?.weight ?? 0;
 
-    // 2. Пересчёт КБЖУ по текущему весу (если есть профиль)
     let updatedProfile = userData?.profile;
     let macros: ReturnType<typeof calculateMacrosForUser> | null = null;
 
@@ -580,13 +658,11 @@ const handleFormSubmit = (data: any) => {
       macros = calculateMacrosForUser(updatedProfile);
     }
 
-    // собираем новое "текущее" тело
     const mergedBody = {
       ...(userData?.body || {}),
       ...newData,
     };
 
-    // авто % жира по Navy
     const autoBodyFat = computeBodyFatNavy(mergedBody, userData?.profile);
 
     const hasHistory = (userData?.measurementsHistory || []).length > 0;
@@ -596,16 +672,12 @@ const handleFormSubmit = (data: any) => {
     let bodyStart = userData?.bodyStart ?? null;
     let bodyFatStart = userData?.bodyFatStart ?? null;
 
-    // если старт ещё не задан и истории нет — первый замер становится стартом
     if (!hasHistory && !hasStart) {
       weightStart = newWeight;
       bodyStart = mergedBody;
-      if (autoBodyFat != null) {
-        bodyFatStart = autoBodyFat;
-      }
+      if (autoBodyFat != null) bodyFatStart = autoBodyFat;
     }
 
-    // в историю не кладём запястье, только остальные окружности + вес + % жира
     const { wrist, ...historyBody } = mergedBody as any;
 
     const historyEntry: any = {
@@ -613,14 +685,9 @@ const handleFormSubmit = (data: any) => {
       weight: newWeight,
       ...historyBody,
     };
-    if (autoBodyFat != null) {
-      historyEntry.bodyFat = autoBodyFat;
-    }
+    if (autoBodyFat != null) historyEntry.bodyFat = autoBodyFat;
 
-    const updatedHistory = [
-      ...(userData?.measurementsHistory || []),
-      historyEntry,
-    ];
+    const updatedHistory = [...(userData?.measurementsHistory || []), historyEntry];
 
     const updated: any = {
       ...userData,
@@ -634,7 +701,6 @@ const handleFormSubmit = (data: any) => {
     if (bodyFatStart != null) updated.bodyFatStart = bodyFatStart;
     if (autoBodyFat != null) updated.bodyFatCurrent = autoBodyFat;
 
-    // 4. Если пересчитали макросы — обновляем цели КБЖУ
     if (macros && updatedProfile) {
       updated.calories = macros.calories;
       updated.proteinGoal = macros.proteinGoal;
@@ -697,6 +763,7 @@ const handleFormSubmit = (data: any) => {
   const weightStart = parseFloat(userData?.weightStart) || 0;
   const weightCurrent = parseFloat(userData?.weight) || 0;
   const weightTarget = parseFloat(userData?.targetWeight) || weightStart;
+
   let weightProgress = 0;
   const totalToLose = weightStart - weightTarget;
   const totalLost = weightStart - weightCurrent;
@@ -709,8 +776,6 @@ const handleFormSubmit = (data: any) => {
   }
   weightProgress = Math.max(0, Math.min(weightProgress, 100));
 
-  // ----- % жира: старт / сейчас / цель -----
-
   const bodyStart = userData?.bodyStart || {};
   const bodyCurrent = userData?.body || bodyStart;
   const bodyTarget = userData?.bodyGoal || userData?.bodyTarget || {};
@@ -722,69 +787,92 @@ const handleFormSubmit = (data: any) => {
   let bodyFatTargetRaw: number | null =
     userData?.bodyFatTarget ?? computeBodyFatNavy(bodyTarget, userData?.profile);
 
-  if (
-    !bodyFatTargetRaw &&
-    weightStart &&
-    weightTarget &&
-    bodyFatStartRaw != null
-  ) {
+  if (!bodyFatTargetRaw && weightStart && weightTarget && bodyFatStartRaw != null) {
     const leanMass = weightStart * (1 - bodyFatStartRaw / 100);
     if (weightTarget > leanMass) {
       bodyFatTargetRaw = 100 * (1 - leanMass / weightTarget);
     }
   }
 
-  const bodyFatStart =
-    bodyFatStartRaw != null ? Math.max(3, Math.min(bodyFatStartRaw, 60)) : null;
-  const bodyFatCurrent =
-    bodyFatCurrentRaw != null
-      ? Math.max(3, Math.min(bodyFatCurrentRaw, 60))
-      : bodyFatStart;
-  const bodyFatTarget =
-    bodyFatTargetRaw != null
-      ? Math.max(3, Math.min(bodyFatTargetRaw, 60))
-      : null;
+  const clampBF = (v: number | null) =>
+    v != null ? Math.max(3, Math.min(v, 60)) : null;
+
+  const bodyFatStart = clampBF(bodyFatStartRaw);
+  const bodyFatCurrent = clampBF(bodyFatCurrentRaw ?? bodyFatStartRaw ?? null);
+  const bodyFatTarget = clampBF(bodyFatTargetRaw);
+
+  // прогресс по % жира
+  let bodyFatProgress = 0;
+  if (
+    bodyFatStart != null &&
+    bodyFatCurrent != null &&
+    bodyFatTarget != null &&
+    bodyFatStart !== bodyFatTarget
+  ) {
+    const totalDelta = bodyFatStart - bodyFatTarget;
+    const currentDelta = bodyFatStart - bodyFatCurrent;
+
+    if (totalDelta > 0) {
+      bodyFatProgress = (currentDelta / totalDelta) * 100;
+    } else {
+      const totalUp = bodyFatTarget - bodyFatStart;
+      const currentUp = bodyFatCurrent - bodyFatStart;
+      bodyFatProgress = (currentUp / totalUp) * 100;
+    }
+  }
+  bodyFatProgress = Math.max(0, Math.min(bodyFatProgress, 100));
 
   // ================== РЕНДЕР ==================
 
   return (
-    <>
-      <div className="cosmic-bg" />
-
-      <div className="relative z-10 flex flex-col gap-6 px-4 sm:px-6 md:px-8 pt-6 pb-24">
-        {/* верхняя панель с кнопкой профиля */}
-        <div className="flex justify-end mb-2">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--text-primary)] pb-20">
+      {/* Золотая шапка с логотипом и кнопкой профиля справа */}
+      <PageHeader
+        title=""
+        centerSlot={
+          <Image
+            src="/img/avyra-logo.svg"
+            alt="Avyra"
+            width={120}
+            height={32}
+            className="h-7 w-auto"
+            priority
+          />
+        }
+        rightSlot={
           <Link
             href="/profile"
-            className="flex items-center gap-2 px-3 py-2 rounded-full bg-black/30 border border-white/15 hover:bg-black/50 transition-all text-sm text-gray-200"
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 text-xs font-medium backdrop-blur-sm hover:bg-white/25 transition-colors"
           >
             <User className="w-4 h-4" />
             <span>Профиль</span>
           </Link>
-        </div>
+        }
+      />
 
-        {/* Приветственный экран, если нет данных */}
+      <main className="relative z-10 max-w-3xl mx-auto flex flex-col px-3 sm:px-4 md:px-5 pt-4 gap-3">
+        {/* Приветственный экран */}
         {!userData && !showForm ? (
           <motion.div
-            className="flex flex-col items-center justify-center h-[80vh] px-6 text-center"
-            initial={{ opacity: 0, scale: 0.8 }}
+            className="flex flex-col items-center justify-center h-[70vh] px-4 text-center"
+            initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.4 }}
           >
-            <div className="glass-card p-8 max-w-sm">
-              <Sparkles className="w-16 h-16 mx-auto mb-4 neon-text-teal" />
-              <h1 className="text-2xl font-bold mb-4 neon-text-teal">
+            <div className="glass-card p-6 max-w-sm w-full mx-auto">
+              <Sparkles className="w-10 h-10 mx-auto mb-3" />
+              <h1 className="text-xl font-semibold mb-3">
                 Добро пожаловать в FitEat
               </h1>
-              <p className="text-gray-300 mb-6">
-                Твой персональный фитнес-коуч в Telegram. Давай начнем
-                путешествие к идеальному телу!
+              <p className="text-sm text-muted mb-4">
+                Настроим план питания и замеры, чтобы ты видел прогресс, а не
+                просто цифры.
               </p>
               <button
                 onClick={() => setShowForm(true)}
                 className="cosmic-button w-full"
               >
-                Начать трансформацию
+                Начать
               </button>
             </div>
           </motion.div>
@@ -794,104 +882,73 @@ const handleFormSubmit = (data: any) => {
           <>
             {/* приветствие из Telegram */}
             {telegramUser?.firstName && (
-              <motion.div
-                className="glass-card p-4 animate-slide-up"
-                initial={{ opacity: 0, y: -20 }}
+              <motion.section
+                className="glass-card p-4"
+                initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
               >
-                <h1 className="text-xl font-bold neon-text-teal flex items-center gap-2">
+                <h1 className="text-base font-semibold flex items-center gap-2">
                   <User className="w-5 h-5" />
                   Привет, {telegramUser.firstName}! 👋
                 </h1>
-                <p className="text-sm text-gray-400 mt-1">
-                  Готов к новым достижениям сегодня?
+                <p className="text-xs text-muted mt-1">
+                  Сегодня тоже отмечаем КБЖУ, воду, сон и тренировки.
                 </p>
-              </motion.div>
+              </motion.section>
             )}
 
-            {/* Блок 1 — ежедневные КБЖУ */}
+            {/* Блок 1 — сегодняшний прогресс (кольца КБЖУ) */}
             <motion.section
-              className="glass-card p-6 animate-slide-up"
-              style={{ animationDelay: "0.1s" }}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 }}
             >
-              <h2 className="text-lg font-bold mb-4 neon-text-green flex items-center gap-2">
-                <Activity className="w-5 h-5" />
-                Сегодняшний прогресс
-              </h2>
-              <div className="flex items-center gap-6">
-                <div className="w-[180px] h-[180px] flex-shrink-0">
-                  <MultiRingProgress
-                    calories={caloriesActual}
-                    caloriesGoal={caloriesGoal}
-                    protein={proteinActual}
-                    proteinGoal={proteinGoal}
-                    fat={fatActual}
-                    fatGoal={fatGoal}
-                    carbs={carbsActual}
-                    carbsGoal={carbsGoal}
-                  />
-                </div>
-                <div className="flex-1 space-y-3">
-                  <StatsRow
-                    label="Калории"
-                    value={caloriesActual}
-                    goal={caloriesGoal}
-                    color="#00d4aa"
-                    icon={<Flame className="w-4 h-4" />}
-                  />
-                  <StatsRow
-                    label="Белки"
-                    value={proteinActual}
-                    goal={proteinGoal}
-                    color="#39ff14"
-                    icon={<Zap className="w-4 h-4" />}
-                  />
-                  <StatsRow
-                    label="Жиры"
-                    value={fatActual}
-                    goal={fatGoal}
-                    color="#00f3ff"
-                    icon={<Droplets className="w-4 h-4" />}
-                  />
-                  <StatsRow
-                    label="Углеводы"
-                    value={carbsActual}
-                    goal={carbsGoal}
-                    color="#ff6b6b"
-                    icon={<Wheat className="w-4 h-4" />}
-                  />
-                </div>
-              </div>
+              <TodayNutritionProgressCard
+                calories={caloriesActual}
+                protein={proteinActual}
+                fat={fatActual}
+                carbs={carbsActual}
+                caloriesGoal={caloriesGoal}
+                proteinGoal={proteinGoal}
+                fatGoal={fatGoal}
+                carbsGoal={carbsGoal}
+              />
             </motion.section>
 
             {/* Блок 2 — недельные привычки */}
             <motion.section
-              className="glass-card p-6 animate-slide-up"
-              style={{ animationDelay: "0.2s" }}
+              className="glass-card p-5"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
             >
-              <h2 className="text-lg font-bold mb-4 neon-text-blue flex items-center gap-2">
-                <TrendingUp className="w-5 h-5" />
+              <h2 className="text-base font-semibold mb-4 text-center">
                 Недельные привычки
               </h2>
 
-              {/* подписи над квадратиками */}
-              {weeklyStats.days.length === 7 && (
-                <div className="flex justify-end mb-2 pr-1 gap-1">
-                  {weeklyStats.days.map((d) => (
-                    <div
-                      key={d.date}
-                      className="w-6 text-[10px] leading-tight text-center text-gray-500"
-                    >
-                      <div className="uppercase">{d.weekday}</div>
-                      <div>{d.day}</div>
+              <div className="mt-1 w-full grid grid-cols-[auto,1fr] gap-y-2">
+                {weeklyStats.days.length === 7 && (
+                  <>
+                    <span className="text-sm text-muted" />
+                    <div className="flex justify-end gap-1">
+                      {weeklyStats.days.map((d) => (
+                        <div
+                          key={d.date}
+                          className="w-6 text-[10px] leading-tight text-center text-muted"
+                        >
+                          <div className="uppercase">{d.weekday}</div>
+                          <div>{d.day}</div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              )}
+                  </>
+                )}
 
-              <div className="space-y-3">
                 <WeeklyHabitRow label="Питание" data={weeklyStats.nutrition} />
-                <WeeklyHabitRow label="Тренировки" data={weeklyStats.workouts} />
+                <WeeklyHabitRow
+                  label="Тренировки"
+                  data={weeklyStats.workouts}
+                />
                 <WeeklyHabitRow label="Вода" data={weeklyStats.water} />
                 <WeeklyHabitRow label="Сон" data={weeklyStats.sleep} />
               </div>
@@ -899,48 +956,55 @@ const handleFormSubmit = (data: any) => {
 
             {/* Блок 3 — контроль веса */}
             <motion.section
-              className="glass-card p-6 animate-slide-up"
-              style={{ animationDelay: "0.3s" }}
+              className="glass-card p-5"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
             >
-              <h2 className="text-lg font-bold mb-4 neon-text-teal flex items-center gap-2">
-                <Target className="w-5 h-5" />
+              <h2 className="text-base font-semibold mb-4 text-center">
                 Контроль веса
               </h2>
-              <div className="grid grid-cols-3 gap-4 mb-4">
-                <div className="text-center">
-                  <p className="text-sm text-gray-400 mb-1">Старт</p>
-                  <p className="text-2xl font-bold text-gray-300">
+              <div className="grid grid-cols-3 gap-3 mb-4 text-sm">
+                <div className="text-left">
+                  <p className="text-[11px] text-muted mb-1">Старт</p>
+                  <p className="text-lg font-semibold">
                     {userData?.weightStart ?? "—"} кг
                   </p>
                 </div>
+
                 <div className="text-center">
-                  <p className="text-sm text-gray-400 mb-1">Текущий</p>
-                  <p className="text-2xl font-bold neon-text-teal">
+                  <p className="text-[11px] text-muted mb-1">Текущий</p>
+                  <p
+                    className="text-lg font-semibold"
+                    style={{ color: "var(--accent-gold)" }}
+                  >
                     {userData?.weight ?? "—"} кг
                   </p>
                 </div>
-                <div className="text-center">
-                  <p className="text-sm text-gray-400 mb-1">Цель</p>
-                  <p className="text-2xl font-bold neon-text-green">
+
+                <div className="text-right">
+                  <p className="text-[11px] text-muted mb-1">Цель</p>
+                  <p className="text-lg font-semibold">
                     {userData?.targetWeight ?? "—"} кг
                   </p>
                 </div>
               </div>
+
               <ProgressBar
                 label="Прогресс к цели"
                 percent={Math.round(weightProgress)}
-                color="#00d4aa"
               />
             </motion.section>
 
             {/* Блок 4 — замеры тела */}
             {userData?.body && (
               <motion.section
-                className="glass-card p-6 animate-slide-up"
-                style={{ animationDelay: "0.4s" }}
+                className="glass-card p-5"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
               >
-                <h2 className="text-lg font-bold mb-4 neon-text-green flex items-center gap-2">
-                  <Trophy className="w-5 h-5" />
+                <h2 className="text-base font-semibold mb-4 text-center">
                   Замеры тела
                 </h2>
 
@@ -950,18 +1014,6 @@ const handleFormSubmit = (data: any) => {
                   const bodyTargetLocal =
                     userData.bodyGoal || userData.bodyTarget || {};
 
-                  const keys = [
-                    "neck",
-                    "shoulders",
-                    "chest",
-                    "arms",
-                    "forearm",
-                    "waist",
-                    "hips",
-                    "thigh",
-                    "calf",
-                  ];
-
                   const showBodyFatBlock =
                     bodyFatStart != null ||
                     bodyFatCurrent != null ||
@@ -969,118 +1021,65 @@ const handleFormSubmit = (data: any) => {
 
                   return (
                     <>
-                      {/* Верхний блок: % жира старт / сейчас / цель */}
                       {showBodyFatBlock && (
-                        <div className="grid grid-cols-3 gap-4 mb-4 text-center">
-                          <div>
-                            <p className="text-sm text-gray-400">
-                              Старт % жира
-                            </p>
-                            <p className="text-2xl font-bold text-gray-100">
+                        <div className="mb-4">
+                          <div className="grid grid-cols-3 text-[11px] text-muted mb-1">
+                            <div className="text-left">Старт % жира</div>
+                            <div className="text-center">Сейчас % жира</div>
+                            <div className="text-right">Цель % жира</div>
+                          </div>
+
+                          <div className="grid grid-cols-3 text-base font-semibold">
+                            <div className="text-left">
                               {bodyFatStart != null
                                 ? `${bodyFatStart.toFixed(1)}%`
                                 : "—"}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-400">
-                              Сейчас % жира
-                            </p>
-                            <p className="text-2xl font-bold neon-text-teal">
+                            </div>
+                            <div
+                              className="text-center"
+                              style={{ color: "var(--accent-gold)" }}
+                            >
                               {bodyFatCurrent != null
                                 ? `${bodyFatCurrent.toFixed(1)}%`
                                 : "—"}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm text-gray-400">
-                              Цель % жира
-                            </p>
-                            <p className="text-2xl font-bold neon-text-green">
+                            </div>
+                            <div className="text-right">
                               {bodyFatTarget != null
                                 ? `${bodyFatTarget.toFixed(1)}%`
                                 : "—"}
-                            </p>
+                            </div>
+                          </div>
+
+                          <div className="mt-3">
+                            <ProgressBar
+                              label="Прогресс по % жира"
+                              percent={Math.round(bodyFatProgress)}
+                            />
                           </div>
                         </div>
                       )}
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-                        {keys
-                          .filter(
-                            (key) =>
-                              bodyCurrentLocal[key] != null ||
-                              bodyStartLocal[key] != null ||
-                              bodyTargetLocal[key] != null
-                          )
-                          .map((key) => {
-                            const startVal = bodyStartLocal[key] ?? null;
-                            const currentVal = bodyCurrentLocal[key] ?? null;
-                            const targetVal = bodyTargetLocal[key] ?? null;
-
-                            return (
-                              <div
-                                key={key}
-                                className="bg-black/20 rounded-lg p-3 flex flex-col gap-2"
-                              >
-                                <div className="flex justify-between items-center">
-                                  <span className="text-gray-300 font-medium">
-                                    {translateName(key)}
-                                  </span>
-                                </div>
-
-                                <div className="grid grid-cols-3 gap-2 text-xs">
-                                  <div className="flex flex-col">
-                                    <span className="text-gray-500">
-                                      Старт
-                                    </span>
-                                    <span className="font-semibold text-gray-200">
-                                      {startVal != null
-                                        ? `${startVal} см`
-                                        : "—"}
-                                    </span>
-                                  </div>
-
-                                  <div className="flex flex-col">
-                                    <span className="text-gray-500">
-                                      Сейчас
-                                    </span>
-                                    <span className="font-semibold neon-text-teal">
-                                      {currentVal != null
-                                        ? `${currentVal} см`
-                                        : "—"}
-                                    </span>
-                                  </div>
-
-                                  <div className="flex flex-col">
-                                    <span className="text-gray-500">
-                                      Цель
-                                    </span>
-                                    <span className="font-semibold text-emerald-300">
-                                      {targetVal != null
-                                        ? `${targetVal} см`
-                                        : "—"}
-                                    </span>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
-                      </div>
+                      <BodyMeasurementsTable
+                        bodyStart={bodyStartLocal}
+                        bodyCurrent={bodyCurrentLocal}
+                        bodyTarget={bodyTargetLocal}
+                      />
                     </>
                   );
                 })()}
               </motion.section>
             )}
 
-            {/* Блок 5 — кнопка замеров */}
+            {/* кнопка замеров */}
             <motion.div
-              className="flex flex-col gap-3 w-full mt-2 animate-slide-up"
-              style={{ animationDelay: "0.5s" }}
+              className="flex flex-col gap-3 w-full mt-1"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25 }}
             >
               <button
                 onClick={() => setShowMeasurements(true)}
-                className="cosmic-button w-full flex items-center justify-center gap-2"
+                className="cosmic-button w-full flex items-center justify-center gap-2 text-sm"
               >
                 <Weight className="w-5 h-5" />
                 Ввести замеры и вес
@@ -1096,13 +1095,13 @@ const handleFormSubmit = (data: any) => {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+              className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
             >
               <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
+                initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.8, opacity: 0 }}
-                className="bg-gray-900 rounded-2xl shadow-2xl p-6 w-full max-w-md border border-teal-500/30"
+                exit={{ scale: 0.9, opacity: 0 }}
+                className="glass-card p-6 w-full max-w-md"
               >
                 <MeasurementsForm
                   onSave={handleSaveMeasurements}
@@ -1113,64 +1112,34 @@ const handleFormSubmit = (data: any) => {
             </motion.div>
           )}
         </AnimatePresence>
-      </div>
-    </>
-  );
-}
-
-// ================== UI-КОМПОНЕНТЫ ==================
-
-function StatsRow({
-  label,
-  value,
-  goal,
-  color,
-  icon,
-}: {
-  label: string;
-  value: number;
-  goal: number;
-  color: string;
-  icon: JSX.Element;
-}) {
-  return (
-    <div className="flex justify-between items-center text-base bg-black/20 rounded-lg p-3">
-      <div className="flex items-center gap-2">
-        <div style={{ color }} className="animate-pulse-glow">
-          {icon}
-        </div>
-        <span className="font-bold text-gray-300">{label}</span>
-      </div>
-      <span className="font-semibold text-white">
-        <span className="animate-count">{value}</span>
-        <span className="text-sm text-gray-500">/{goal}</span>
-      </span>
+      </main>
     </div>
   );
 }
 
-function ProgressBar({
-  label,
-  percent,
-  color,
-}: {
-  label: string;
-  percent: number;
-  color: string;
-}) {
+// ================== ПРОЧИЕ UI-КОМПОНЕНТЫ ==================
+
+function ProgressBar({ label, percent }: { label: string; percent: number }) {
+  const clamped = Math.max(0, Math.min(percent, 100));
+
+  const barColor = "var(--accent-gold)";
+  const percentColor = "var(--text-primary)";
+
   return (
     <div className="space-y-2">
-      <div className="flex justify-between text-sm">
-        <span className="text-gray-300 font-medium">{label}</span>
-        <span className="text-white font-bold">{percent}%</span>
+      <div className="flex justify-between text-xs">
+        <span className="text-muted font-medium">{label}</span>
+        <span className="font-semibold" style={{ color: percentColor }}>
+          {clamped}%
+        </span>
       </div>
-      <div className="w-full h-3 bg-black/30 rounded-full overflow-hidden">
+      <div className="w-full h-1.5 bg-[var(--surface-muted)] rounded-full overflow-hidden">
         <motion.div
-          className="h-full rounded-full progress-ring"
-          style={{ backgroundColor: color }}
+          className="h-full rounded-full"
+          style={{ backgroundColor: barColor }}
           initial={{ width: 0 }}
-          animate={{ width: `${percent}%` }}
-          transition={{ duration: 1, ease: "easeOut" }}
+          animate={{ width: `${clamped}%` }}
+          transition={{ duration: 0.8, ease: "easeOut" }}
         />
       </div>
     </div>
@@ -1179,18 +1148,19 @@ function ProgressBar({
 
 function WeeklyHabitRow({ label, data }: { label: string; data: DayStatus[] }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <span className="text-sm text-gray-300 w-28">{label}</span>
-      <div className="flex gap-1 flex-1 justify-end">
+    <>
+      <span className="text-sm text-muted">{label}</span>
+      <div className="flex justify-end gap-1">
         {data.map((status, index) => {
-          let colorClass = "bg-black/40 border-white/15";
+          let colorClass = "bg-gray-200 border-gray-200";
 
           if (status === "success") {
-            colorClass = "bg-emerald-500/80 border-emerald-300/80";
+            colorClass = "bg-[var(--accent-soft)] border-[var(--accent-soft)]";
           } else if (status === "fail") {
-            colorClass = "bg-red-500/80 border-red-300/80";
+            colorClass = "bg-red-100 border-red-300";
           } else if (status === "rest") {
-            colorClass = "bg-yellow-400/80 border-yellow-200/80";
+            colorClass =
+              "bg-transparent border-[var(--accent-soft)] border-dashed";
           }
 
           return (
@@ -1201,116 +1171,94 @@ function WeeklyHabitRow({ label, data }: { label: string; data: DayStatus[] }) {
           );
         })}
       </div>
-    </div>
+    </>
   );
 }
 
-function MultiRingProgress({
-  calories,
-  caloriesGoal,
-  protein,
-  proteinGoal,
-  fat,
-  fatGoal,
-  carbs,
-  carbsGoal,
-}: {
-  calories: number;
-  caloriesGoal: number;
-  protein: number;
-  proteinGoal: number;
-  fat: number;
-  fatGoal: number;
-  carbs: number;
-  carbsGoal: number;
-}) {
-  const ringSize = 180;
-  const strokeWidth = 16;
-  const gap = 5;
-  const r1 = ringSize / 2 - strokeWidth / 2;
-  const r2 = r1 - strokeWidth - gap;
-  const r3 = r2 - strokeWidth - gap;
-  const r4 = r3 - strokeWidth - gap;
+type BodyMap = Record<string, number | null | undefined>;
 
-  const rings = [
-    {
-      key: "K",
-      value: calories,
-      goal: caloriesGoal,
-      color: "#00d4aa",
-      radius: r1,
-    },
-    {
-      key: "Б",
-      value: protein,
-      goal: proteinGoal,
-      color: "#39ff14",
-      radius: r2,
-    },
-    {
-      key: "Ж",
-      value: fat,
-      goal: fatGoal,
-      color: "#00f3ff",
-      radius: r3,
-    },
-    {
-      key: "У",
-      value: carbs,
-      goal: carbsGoal,
-      color: "#ff6b6b",
-      radius: r4,
-    },
+function BodyMeasurementsTable({
+  bodyStart,
+  bodyCurrent,
+  bodyTarget,
+}: {
+  bodyStart: BodyMap;
+  bodyCurrent: BodyMap;
+  bodyTarget: BodyMap;
+}) {
+  const rows: { key: string; label: string; icon: string }[] = [
+    { key: "neck", label: "Шея", icon: "🧑‍🦱" },
+    { key: "shoulders", label: "Плечи", icon: "🏋️" },
+    { key: "chest", label: "Грудь", icon: "🫁" },
+    { key: "arms", label: "Руки", icon: "💪" },
+    { key: "forearm", label: "Предплечье", icon: "✋" },
+    { key: "waist", label: "Талия", icon: "🎯" },
+    { key: "hips", label: "Бёдра", icon: "🩳" },
+    { key: "thigh", label: "Бедро", icon: "🦵" },
+    { key: "calf", label: "Икра", icon: "🦿" },
   ];
 
+  const formatVal = (v: number | null | undefined) =>
+    v != null ? `${v} см` : "—";
+
+  const visibleRows = rows.filter((r) => {
+    const s = bodyStart[r.key];
+    const c = bodyCurrent[r.key];
+    const t = bodyTarget[r.key];
+    return s != null || c != null || t != null;
+  });
+
+  if (visibleRows.length === 0) return null;
+
   return (
-    <div className="relative">
-      <svg width={ringSize} height={ringSize} className="-rotate-90 shrink-0">
-        {rings.map((r) => (
-          <circle
-            key={`bg-${r.key}`}
-            cx={ringSize / 2}
-            cy={ringSize / 2}
-            r={r.radius}
-            stroke="rgba(255, 255, 255, 0.1)"
-            strokeWidth={strokeWidth}
-            fill="none"
-          />
-        ))}
-        {rings.map((r) => {
-          const progress =
-            r.goal > 0 ? Math.max(0, Math.min(r.value / r.goal, 1)) : 0;
-          const circumference = 2 * Math.PI * r.radius;
-          const offset = circumference - progress * circumference;
+    <div className="mt-2 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-muted)]">
+      <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 px-3 pt-3 pb-2 text-[11px] text-muted border-b border-[var(--border-soft)]">
+        <div>Часть тела</div>
+        <div className="text-right">Старт</div>
+        <div className="text-right">Сейчас</div>
+        <div className="text-right">Цель</div>
+      </div>
+
+      <div className="divide-y divide-[var(--border-soft)]">
+        {visibleRows.map((row) => {
+          const s = bodyStart[row.key];
+          const c = bodyCurrent[row.key];
+          const t = bodyTarget[row.key];
+
           return (
-            <motion.circle
-              key={`fg-${r.key}`}
-              cx={ringSize / 2}
-              cy={ringSize / 2}
-              r={r.radius}
-              stroke={r.color}
-              strokeWidth={strokeWidth}
-              fill="none"
-              strokeLinecap="round"
-              strokeDasharray={circumference}
-              strokeDashoffset={offset}
-              className="progress-ring"
-              transition={{ duration: 1.5, ease: "easeOut" }}
-            />
+            <div
+              key={row.key}
+              className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] gap-2 px-3 py-2 items-center text-sm"
+            >
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-[var(--text-primary)]">
+                  {row.label}
+                </span>
+              </div>
+
+              <div className="text-right text-[13px]">
+                <div className="font-semibold text-[var(--text-primary)]">
+                  {formatVal(s)}
+                </div>
+              </div>
+
+              <div className="text-right text-[13px]">
+                <div
+                  className="font-semibold"
+                  style={{ color: "var(--accent-gold)" }}
+                >
+                  {formatVal(c)}
+                </div>
+              </div>
+
+              <div className="text-right text-[13px]">
+                <div className="font-semibold text-[var(--text-primary)]">
+                  {formatVal(t)}
+                </div>
+              </div>
+            </div>
           );
         })}
-      </svg>
-
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-2xl font-bold neon-text-teal">
-            {caloriesGoal > 0
-              ? Math.round((calories / caloriesGoal) * 100)
-              : 0}
-            %
-          </div>
-          <div className="text-xs text-gray-400">цели</div>
-        </div>
       </div>
     </div>
   );
@@ -1327,7 +1275,6 @@ function MeasurementsForm({
 }) {
   const body = initialData?.body || initialData?.bodyStart || {};
 
-  // запястье здесь больше не трогаем: только динамические окружности
   const [form, setForm] = useState({
     weight: initialData?.weight != null ? String(initialData.weight) : "",
     neck: body.neck != null ? String(body.neck) : "",
@@ -1365,22 +1312,20 @@ function MeasurementsForm({
 
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-4 text-center neon-text-teal flex items-center justify-center gap-2">
-        <Weight className="w-6 h-6" />
+      <h2 className="text-lg font-semibold mb-4 text-center flex items-center justify-center gap-2">
+        <Weight className="w-5 h-5" />
         Новые замеры и вес
       </h2>
       <form
         onSubmit={handleSubmit}
-        className="space-y-3 max-h-[60vh] overflow-y-auto pr-2"
+        className="space-y-3 max-h-[60vh] overflow-y-auto pr-1"
       >
         {Object.keys(form).map((key) => (
           <div
             key={key}
-            className="flex justify-between items-center bg-black/20 rounded-lg p-3"
+            className="flex justify-between items-center rounded-lg border border-[var(--border-soft)] bg-[var(--surface-muted)] px-3 py-2"
           >
-            <label className="capitalize text-gray-300">
-              {translateName(key)}
-            </label>
+            <label className="text-sm">{translateName(key)}</label>
             <input
               type="number"
               step="0.1"
@@ -1388,19 +1333,19 @@ function MeasurementsForm({
               placeholder="0"
               value={form[key as keyof typeof form] || ""}
               onChange={handleChange}
-              className="bg-black/30 border border-teal-500/30 rounded-lg w-28 p-2 text-right text-white focus:border-teal-500 focus:outline-none"
+              className="ml-3 bg-[var(--surface)] border border-[var(--border-soft)] rounded-md w-24 p-2 text-right text-sm focus:outline-none focus:border-[var(--accent)]"
             />
           </div>
         ))}
-        <div className="flex justify-between gap-4 mt-6 pt-4 border-t border-gray-600">
+        <div className="flex justify-between gap-4 mt-4 pt-4 border-t border-[var(--border-soft)]">
           <button
             type="button"
             onClick={onCancel}
-            className="w-full px-4 py-2 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-all border border-white/20"
+            className="w-full px-4 py-2 rounded-md border border-[var(--border-soft)] bg-[var(--surface)] text-sm hover:bg-[var(--surface-muted)] transition-colors"
           >
             Отмена
           </button>
-          <button type="submit" className="w-full cosmic-button">
+          <button type="submit" className="w-full cosmic-button text-sm">
             Сохранить
           </button>
         </div>

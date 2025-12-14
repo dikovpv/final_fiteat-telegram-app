@@ -1,39 +1,32 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import React, { useMemo, useState } from "react";
+import { notFound } from "next/navigation";
+import Link from "next/link";
 import { motion } from "framer-motion";
-import {
-  ArrowLeft,
-  Flame,
-  UtensilsCrossed,
-  Sparkles,
-  Lock,
-  Scale,
-  PlusCircle,
-} from "lucide-react";
+import { ArrowLeft, UtensilsCrossed, CalendarDays, X } from "lucide-react";
 
+import { meals, type MealRecipe, type MealType } from "../meal-data";
 import {
-  meals,
-  type MealRecipe,
-  type MealType,
-  type MealIngredient,
-  computeMealNutrition,
-} from "@/lib/meals-data";
-import { INGREDIENTS } from "@/lib/ingredients-data";
-import {
-  DEFAULT_MEAL_SPLIT_ID,
-  MEAL_SPLIT_PRESETS,
-  MEAL_SPLIT_STORAGE_KEY,
-  type MealSplitPreset,
-} from "../meal-presets";
+  DIARY_STORAGE_PREFIX,
+  DEFAULT_ENTRY,
+  type DiaryEntry,
+  type DiaryMeal,
+} from "../../diary/diary-types";
 
-type UserPlan = {
-  isPro?: boolean;
+type PortionVariant = {
+  id: string;
   calories: number;
-  proteinGoal: number;
-  fatGoal: number;
-  carbsGoal: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+};
+
+type AddToDiaryModalProps = {
+  isOpen: boolean;
+  defaultDate: string;
+  onClose: () => void;
+  onConfirm: (date: string) => void;
 };
 
 const MEAL_TYPE_LABELS: Record<MealType, string> = {
@@ -44,473 +37,456 @@ const MEAL_TYPE_LABELS: Record<MealType, string> = {
   dessert: "Десерт",
 };
 
-// Локальная дата YYYY-MM-DD
-function getLocalISODate(date: Date = new Date()): string {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  const d = String(date.getDate()).padStart(2, "0");
-  return `${y}-${m}-${d}`;
-}
+function AddToDiaryModal({
+  isOpen,
+  defaultDate,
+  onClose,
+  onConfirm,
+}: AddToDiaryModalProps) {
+  const [date, setDate] = useState(defaultDate);
 
-function loadUserPlanFromLocalStorage(): UserPlan | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = localStorage.getItem("fitEatUserData");
-    if (!raw) return null;
-    const data = JSON.parse(raw);
-    return {
-      isPro: !!data.isPro,
-      calories: Number(data.calories) || 2400,
-      proteinGoal: Number(data.proteinGoal) || 160,
-      fatGoal: Number(data.fatGoal) || 80,
-      carbsGoal: Number(data.carbsGoal) || 300,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function clampAndRoundScale(targetCalories: number, baseCalories: number) {
-  if (!baseCalories || !isFinite(targetCalories)) return 1;
-  const raw = targetCalories / baseCalories;
-  const clamped = Math.min(3, Math.max(0.5, raw));
-  return Math.round(clamped * 4) / 4; // шаг 0.25 порции, без экстремальных значений
-}
-
-function roundIngredientAmount(amount: number, unit?: string) {
-  if (!isFinite(amount)) return 0;
-
-  if (unit && unit.includes("шт")) {
-    return Math.max(1, Math.round(amount));
-  }
-
-  const safeAmount = Math.max(amount, 0);
-
-  if (safeAmount < 5) {
-    return Math.max(0.5, Math.round(safeAmount * 2) / 2);
-  }
-
-  return Math.round(safeAmount / 5) * 5;
-}
-
-export default function MealPage({ params }: { params: { slug: string } }) {
-  const router = useRouter();
-
-  const recipe = useMemo<MealRecipe | undefined>(
-    () => meals.find((m: MealRecipe) => m.slug === params.slug),
-    [params.slug]
-  );
-
-  const [userPlan, setUserPlan] = useState<UserPlan | null>(null);
-  const [portionScale, setPortionScale] = useState<number>(1);
-  const [diaryMealType, setDiaryMealType] = useState<MealType>("lunch");
-  const [mealSplitPreset, setMealSplitPreset] =
-    useState<MealSplitPreset | null>(null);
-
-  useEffect(() => {
-    const plan = loadUserPlanFromLocalStorage();
-    setUserPlan(plan);
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const saved = window.localStorage.getItem(MEAL_SPLIT_STORAGE_KEY);
-    const presetFromStorage = MEAL_SPLIT_PRESETS.find((p) => p.id === saved);
-    const fallbackPreset =
-      MEAL_SPLIT_PRESETS.find((p) => p.id === DEFAULT_MEAL_SPLIT_ID) ||
-      MEAL_SPLIT_PRESETS[0];
-
-    setMealSplitPreset(presetFromStorage ?? fallbackPreset ?? null);
-  }, []);
-
-  useEffect(() => {
-    if (recipe) {
-      setDiaryMealType(recipe.mealType);
-    }
-  }, [recipe]);
-
-  if (!recipe) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#05050a] text-white">
-        <div className="text-center space-y-3">
-          <p className="text-lg font-semibold">Рецепт не найден</p>
-          <button
-            onClick={() => router.back()}
-            className="text-teal-300 underline underline-offset-4"
-          >
-            Вернуться назад
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const isPro = !!userPlan?.isPro;
-  const isLocked = !!recipe.proOnly && !isPro;
-
-  // Базовая нутриция (на 1 порцию)
-  const baseNutrition = computeMealNutrition(recipe);
-  const baseCalories = baseNutrition.perPortionCalories;
-  const baseProtein = baseNutrition.perPortionProtein;
-  const baseFat = baseNutrition.perPortionFat;
-  const baseCarbs = baseNutrition.perPortionCarbs;
-
-  const targetForMeal = useMemo(() => {
-    if (!userPlan || !mealSplitPreset) return null;
-    const share = mealSplitPreset.ratios[recipe.mealType] ?? 0;
-    if (share <= 0) return null;
-
-    return {
-      calories: Math.round(userPlan.calories * share),
-      protein: Math.round(userPlan.proteinGoal * share),
-      fat: Math.round(userPlan.fatGoal * share),
-      carbs: Math.round(userPlan.carbsGoal * share),
-      share,
-    };
-  }, [mealSplitPreset, recipe.mealType, userPlan]);
-
-  useEffect(() => {
-    if (!targetForMeal || !baseCalories) return;
-    const nextScale = clampAndRoundScale(targetForMeal.calories, baseCalories);
-
-    if (Math.abs(nextScale - portionScale) > 0.01) {
-      setPortionScale(nextScale);
-    }
-  }, [targetForMeal, baseCalories, portionScale]);
-
-  // Масштабирование
-  const scaledCalories = baseCalories * portionScale;
-  const scaledProtein = baseProtein * portionScale;
-  const scaledFat = baseFat * portionScale;
-  const scaledCarbs = baseCarbs * portionScale;
-
-  const scaledIngredients: MealIngredient[] = (recipe.ingredients || []).map(
-    (ing: MealIngredient) => ({
-      ...ing,
-      amount: roundIngredientAmount(ing.amount * portionScale, ing.unit),
-    })
-  );
-
-  const mealLabel = MEAL_TYPE_LABELS[recipe.mealType];
-
-  const handleScaleToPlan = () => {
-    if (!userPlan) {
-      alert("Сначала заполни профиль, чтобы я знал твой план по калориям.");
-      return;
-    }
-
-    if (!baseCalories || baseCalories <= 0) {
-      alert("Для этого рецепта нет корректных данных по калорийности.");
-      return;
-    }
-
-    const fallbackRatio = 0.25;
-    const targetCalories =
-      targetForMeal?.calories ?? userPlan.calories * fallbackRatio;
-
-    const scale = clampAndRoundScale(targetCalories, baseCalories);
-    setPortionScale(scale);
-  };
-
-  const portionScalePercent = Math.round(portionScale * 100);
-
-  // Добавление в дневник
-  const handleAddToDiary = () => {
-    if (typeof window === "undefined") return;
-
-    const dateISO = getLocalISODate();
-    const key = `fitEatDiary_${dateISO}`;
-
-    let diary: any = {
-      meals: [],
-      workouts: [],
-      water: 0,
-      sleep: {},
-    };
-
-    try {
-      const raw = localStorage.getItem(key);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === "object") {
-          diary = { ...diary, ...parsed };
-          diary.meals = Array.isArray(parsed.meals)
-            ? parsed.meals
-            : diary.meals;
-        }
-      }
-    } catch {
-      // если что-то не так — начинаем с чистого
-    }
-
-    const newMeal = {
-      id: `recipe-${recipe.slug}-${Date.now()}`,
-      title: recipe.title,
-      source: "recipe",
-      recipeSlug: recipe.slug,
-      calories: Math.round(scaledCalories),
-      protein: Math.round(scaledProtein),
-      fat: Math.round(scaledFat),
-      carbs: Math.round(scaledCarbs),
-      mealType: diaryMealType,
-      done: false,
-      portionScale,
-      baseServings: recipe.baseServings,
-    };
-
-    diary.meals = [...(diary.meals || []), newMeal];
-
-    localStorage.setItem(key, JSON.stringify(diary));
-
-    alert(
-      `Блюдо добавлено в дневник на сегодня в раздел «${MEAL_TYPE_LABELS[diaryMealType]}».`
-    );
-  };
+  if (!isOpen) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#05050a] via-[#10081d] to-[#1a1238] text-white pb-24">
-      <div className="cosmic-bg"></div>
-
-      <div className="relative z-10 px-4 pt-6 pb-6 space-y-6">
-        {/* Верхняя панель */}
-        <div className="flex items-center justify-between mb-2">
-          <button
-            onClick={() => router.back()}
-            className="inline-flex items-center gap-2 text-sm text-gray-300 hover:text-teal-300 transition"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Назад
-          </button>
-          {isPro && (
-            <div className="px-3 py-1 rounded-full bg-yellow-500/10 border border-yellow-400/40 text-xs text-yellow-200 flex items-center gap-1">
-              <Sparkles className="w-3 h-3" />
-              <span>FitEat PRO</span>
+    <motion.div
+      className="fixed inset-0 z-[70] bg-black/50 flex items-center justify-center px-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      onClick={onClose}
+    >
+      <motion.div
+        onClick={(e) => e.stopPropagation()}
+        initial={{ y: 30, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 30, opacity: 0 }}
+        transition={{ duration: 0.2 }}
+        className="w-full max-w-sm rounded-2xl bg-[var(--surface)] border border-[var(--border-soft)] shadow-xl p-5"
+      >
+        <div className="flex items-start justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center bg-[var(--accent-soft)] text-[var(--accent-gold)]">
+              <CalendarDays className="w-4 h-4" />
             </div>
-          )}
+            <div>
+              <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+                Добавить в дневник
+              </h2>
+              <p className="text-xs text-[var(--text-secondary)]">
+                Выбери дату, за которую добавить это блюдо.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-full hover:bg-[var(--surface-muted)] text-[var(--text-tertiary)]"
+          >
+            <X className="w-4 h-4" />
+          </button>
         </div>
 
-        {/* Карточка заголовка */}
-        <motion.div
-          className="glass-card p-4 flex gap-3"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-400/50 flex-shrink-0 h-fit">
-            <UtensilsCrossed className="w-7 h-7 text-emerald-300" />
-          </div>
-          <div className="space-y-2 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] uppercase text-teal-300">
-                {mealLabel}
-              </span>
-              {recipe.proOnly && (
-                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-200 border border-yellow-400/40">
-                  <Lock className="w-3 h-3" />
-                  PRO
-                </span>
-              )}
-            </div>
-            <h1 className="text-lg font-bold">{recipe.title}</h1>
-            {recipe.subtitle && (
-              <p className="text-xs text-gray-400">{recipe.subtitle}</p>
-            )}
+        <div className="space-y-2">
+          <label className="block text-xs text-[var(--text-secondary)]">
+            Дата (ГГГГ-ММ-ДД)
+          </label>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-full bg-[var(--surface)] border border-[var(--border-soft)] rounded-lg px-3 py-2 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--accent-gold)]"
+          />
+        </div>
 
-            <div className="flex flex-wrap gap-3 text-xs text-gray-300 mt-2">
-              <div className="flex items-center gap-1">
-                <Flame className="w-4 h-4 text-orange-300" />
-                <span>{Math.round(baseCalories)} ккал / порция</span>
-              </div>
-              <div className="text-[11px] text-gray-400">
-                Б {Math.round(baseProtein)}г • Ж {Math.round(baseFat)}г • У{" "}
-                {Math.round(baseCarbs)}г
-              </div>
-            </div>
-          </div>
-        </motion.div>
-
-        {/* PRO-замок */}
-        {isLocked ? (
-          <motion.div
-            className="glass-card p-6 space-y-4"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
+        <div className="flex justify-between gap-2 mt-5 text-sm">
+          <button
+            onClick={() => {
+              setDate(defaultDate);
+              onConfirm(defaultDate);
+            }}
+            className="px-3 py-1.5 rounded-lg border border-[var(--accent-gold)] text-[var(--accent-gold)] hover:bg-[var(--accent-gold)]/10"
           >
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-2xl bg-yellow-500/10 border border-yellow-400/40">
-                <Lock className="w-6 h-6 text-yellow-300" />
-              </div>
-              <div>
-                <h2 className="text-base font-semibold text-yellow-100">
-                  Рецепт доступен только в FitEat PRO
-                </h2>
-                <p className="text-xs text-gray-400 mt-1">
-                  Здесь у тебя будут подробные рецепты, граммовки под твой план
-                  и множество готовых вариантов питания.
+            Сегодня
+          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              className="px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[var(--text-secondary)] hover:bg-[var(--surface-muted)]"
+            >
+              Отмена
+            </button>
+            <button
+              onClick={() => onConfirm(date)}
+              className="px-3 py-1.5 rounded-lg bg-[var(--accent-gold)] text-white font-semibold hover:brightness-105"
+            >
+              Добавить
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+type PageProps = {
+  params: { slug: string };
+  searchParams?: { [key: string]: string | string[] | undefined };
+};
+
+export default function MealDetailPage({ params, searchParams }: PageProps) {
+  const meal = meals.find((m) => m.slug === params.slug);
+
+  if (!meal) {
+    notFound();
+  }
+
+  const todayISO = new Date().toISOString().split("T")[0];
+
+  // target из query: ?target=700 или ?targetCalories=700
+  const targetFromQueryRaw =
+    (searchParams?.target as string | undefined) ??
+    (searchParams?.targetCalories as string | undefined);
+  const targetFromQuery = targetFromQueryRaw
+    ? Number(targetFromQueryRaw)
+    : undefined;
+
+  // варианты 300–800 ккал
+  const variants: PortionVariant[] = useMemo(() => {
+    const targets = [300, 400, 500, 600, 700, 800];
+
+    if (meal.variants && meal.variants.length > 0) {
+      const byId = new Map<string, PortionVariant>();
+      meal.variants.forEach((v) => {
+        byId.set(String(v.calories), {
+          id: String(v.calories),
+          calories: v.calories,
+          protein: v.protein,
+          fat: v.fat,
+          carbs: v.carbs,
+        });
+      });
+
+      targets.forEach((t) => {
+        if (!byId.has(String(t))) {
+          const factor = t / meal.baseCalories;
+          byId.set(String(t), {
+            id: String(t),
+            calories: t,
+            protein: Math.round(meal.baseProtein * factor),
+            fat: Math.round(meal.baseFat * factor),
+            carbs: Math.round(meal.baseCarbs * factor),
+          });
+        }
+      });
+
+      return targets.map((t) => byId.get(String(t))!) as PortionVariant[];
+    }
+
+    return targets.map((t) => {
+      const factor = t / meal.baseCalories;
+      return {
+        id: String(t),
+        calories: t,
+        protein: Math.round(meal.baseProtein * factor),
+        fat: Math.round(meal.baseFat * factor),
+        carbs: Math.round(meal.baseCarbs * factor),
+      };
+    });
+  }, [meal]);
+
+  // какой вариант выбрать по умолчанию
+  const [selectedVariantId, setSelectedVariantId] = useState<string>(() => {
+    if (targetFromQuery && isFinite(targetFromQuery)) {
+      const closest = variants.reduce((best, current) => {
+        const diffBest = Math.abs(best.calories - targetFromQuery);
+        const diffCur = Math.abs(current.calories - targetFromQuery);
+        return diffCur < diffBest ? current : best;
+      }, variants[0]);
+      return closest.id;
+    }
+    return variants.find((v) => v.calories === 400)?.id ?? variants[0].id;
+  });
+
+  const selectedVariant =
+    variants.find((v) => v.id === selectedVariantId) ?? variants[0];
+
+  const portionFactor = selectedVariant.calories / meal.baseCalories;
+
+  // ингредиенты с нормальным округлением
+  const scaledIngredients = useMemo(
+    () =>
+      meal.ingredients.map((ing) => {
+        const raw = ing.amount * portionFactor;
+        const unit = (ing.unit ?? "").toLowerCase();
+        let display: number;
+
+        if (!Number.isFinite(raw)) {
+          display = ing.amount;
+        } else if (unit.includes("шт")) {
+          // штуки — до целого
+          display = Math.round(raw);
+          if (display === 0 && raw > 0) display = 1;
+        } else if (
+          unit.includes("г") ||
+          unit.includes("ml") ||
+          unit.includes("мл")
+        ) {
+          // граммы / миллилитры — шаг 5/10
+          if (raw <= 20) {
+            display = Math.round(raw / 5) * 5;
+            if (display === 0 && raw > 0) display = 5;
+          } else {
+            display = Math.round(raw / 10) * 10;
+          }
+        } else {
+          // запасной вариант
+          if (raw >= 50) display = Math.round(raw);
+          else if (raw >= 10) display = Math.round(raw * 2) / 2;
+          else display = Math.round(raw * 10) / 10;
+        }
+
+        return { ...ing, scaledAmount: display };
+      }),
+    [meal.ingredients, portionFactor],
+  );
+
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
+  const handleAddToDiary = (dateISO: string) => {
+    if (!dateISO) return;
+
+    try {
+      setIsSaving(true);
+
+      const key = `${DIARY_STORAGE_PREFIX}${dateISO}`;
+      const raw =
+        typeof window !== "undefined" ? localStorage.getItem(key) : null;
+
+      let entry: DiaryEntry = DEFAULT_ENTRY;
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          entry = {
+            ...DEFAULT_ENTRY,
+            ...parsed,
+            meals: parsed.meals ?? [],
+          };
+        } catch {
+          entry = DEFAULT_ENTRY;
+        }
+      }
+
+      const newMeal: DiaryMeal = {
+        id: `meal_${Date.now()}`,
+        title: meal.title,
+        calories: selectedVariant.calories,
+        protein: selectedVariant.protein,
+        fat: selectedVariant.fat,
+        carbs: selectedVariant.carbs,
+        type: meal.mealType,
+        done: false,
+        time: new Date().toLocaleTimeString("ru-RU", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        slug: meal.slug,
+      };
+
+      const updated: DiaryEntry = {
+        ...entry,
+        meals: [...entry.meals, newMeal],
+      };
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem(key, JSON.stringify(updated));
+      }
+
+      setSaveMessage("Блюдо добавлено в дневник");
+    } finally {
+      setIsSaving(false);
+      setShowAddModal(false);
+      setTimeout(() => setSaveMessage(null), 3000);
+    }
+  };
+
+  const currentCalories = selectedVariant.calories;
+  const currentProtein = selectedVariant.protein;
+  const currentFat = selectedVariant.fat;
+  const currentCarbs = selectedVariant.carbs;
+
+  return (
+    <>
+      <div className="cosmic-bg" />
+
+      <div className="relative z-10 min-h-screen bg-[var(--background)] text-[var(--text-primary)] pb-24 flex flex-col">
+        <div className="w-full bg-[var(--accent-gold)] text-white">
+          <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-5 py-3 flex items-center gap-3">
+            <Link
+              href="/meals"
+              className="inline-flex items-center gap-1 text-xs font-medium hover:opacity-90"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>К рецептам</span>
+            </Link>
+            <div className="flex-1 text-center text-sm sm:text-base font-semibold">
+              {meal.title}
+            </div>
+            <div className="w-10" />
+          </div>
+        </div>
+
+        <div className="flex-1 max-w-4xl mx-auto w-full px-3 sm:px-4 md:px-5 pt-4 space-y-4">
+          {/* Фото / заглушка */}
+          <div className="rounded-2xl overflow-hidden border border-[var(--border-soft)] bg-[var(--surface-muted)] h-48 sm:h-64 flex items-center justify-center">
+            {/* @ts-expect-error imageUrl может появиться позже */}
+            {meal.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                // @ts-expect-error imageUrl
+                src={meal.imageUrl}
+                alt={meal.title}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="text-center px-4">
+                <UtensilsCrossed className="w-8 h-8 mx-auto mb-2 text-[var(--text-secondary)]" />
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Здесь будет фото блюда.
                 </p>
               </div>
+            )}
+          </div>
+
+          {/* Краткая шапка */}
+          <section className="glass-card px-4 py-3 space-y-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="uppercase text-[11px] text-[var(--text-muted)]">
+                  {MEAL_TYPE_LABELS[meal.mealType]}
+                </span>
+                {meal.subtitle && (
+                  <span className="text-[var(--text-secondary)]">
+                    {meal.subtitle}
+                  </span>
+                )}
+              </div>
+              <div className="font-semibold">
+                ≈ {currentCalories} ккал · Б {currentProtein}г · Ж{" "}
+                {currentFat}г · У {currentCarbs}г
+              </div>
             </div>
+          </section>
+
+          {/* Выбор ккал */}
+          <section className="glass-card px-4 py-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold">
+                Выбери калорийность порции
+              </h2>
+              <p className="text-[11px] text-[var(--text-secondary)]">
+                КБЖУ и ингредиенты пересчитаются под выбранный вариант.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {variants.map((v) => {
+                const active = v.id === selectedVariantId;
+                return (
+                  <button
+                    key={v.id}
+                    onClick={() => setSelectedVariantId(v.id)}
+                    className={`px-3 py-2 rounded-lg border text-xs transition min-w-[88px] ${
+                      active
+                        ? "border-[var(--accent-gold)] bg-[var(--accent-gold)]/10 text-[var(--text-primary)]"
+                        : "border-[var(--border-soft)] bg-[var(--surface)] text-[var(--text-secondary)] hover:border-[var(--accent-gold)]"
+                    }`}
+                  >
+                    <div className="font-semibold text-[13px]">
+                      {v.calories} ккал
+                    </div>
+                    <div className="mt-1 text-[10px]">
+                      Б {v.protein}г · Ж {v.fat}г · У {v.carbs}г
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {/* Кнопка добавить в дневник */}
+          <section className="glass-card px-4 py-4 space-y-3">
+            <p className="text-xs text-[var(--text-secondary)]">
+              Добавь этот вариант порции в свой дневник как отдельный приём
+              пищи.
+            </p>
             <button
-              onClick={() => (window.location.href = "/pro")}
-              className="cosmic-button w-full mt-2"
+              onClick={() => setShowAddModal(true)}
+              disabled={isSaving}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[var(--text-primary)] text-white py-2.5 text-sm font-semibold hover:brightness-105 disabled:opacity-60"
             >
-              Открыть возможности PRO
+              <UtensilsCrossed className="w-4 h-4" />
+              {isSaving ? "Сохраняю..." : "Добавить в дневник"}
             </button>
-          </motion.div>
-        ) : (
-          <>
-            {/* Подгонка порции + добавление в дневник */}
-            <motion.section
-              className="glass-card p-4 space-y-4"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.05 }}
-            >
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <h2 className="text-sm font-semibold flex items-center gap-2">
-                      <Scale className="w-4 h-4 text-teal-300" />
-                      Подогнать порцию под мой план
-                    </h2>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Я изменю граммовки так, чтобы калорийность порции была
-                      ближе к твоему плану по калориям.
-                    </p>
-                    {targetForMeal ? (
-                      <p className="text-[11px] text-teal-200 mt-1">
-                        Цель пресета для {mealLabel.toLowerCase()}: ~{targetForMeal.calories} ккал · Б {targetForMeal.protein}г · Ж {targetForMeal.fat}г · У {targetForMeal.carbs}г. Ингредиенты округлю до целых яиц и шага 5 г.
-                      </p>
-                    ) : (
-                      <p className="text-[11px] text-gray-500 mt-1">
-                        Использую базовую порцию, пресет пока не выбран.
-                      </p>
+            {saveMessage && (
+              <p className="text-[11px] text-[var(--success-strong)]">
+                {saveMessage}
+              </p>
+            )}
+          </section>
+
+          {/* Ингредиенты */}
+          <section className="glass-card px-4 py-4 space-y-3">
+            <h2 className="text-sm font-semibold">Ингредиенты</h2>
+            <p className="text-xs text-[var(--text-secondary)]">
+              Количество пересчитано под выбранную калорийность порции (
+              {Math.round(portionFactor * 100)}% от базовой).
+            </p>
+
+            <div className="divide-y divide-[var(--border-soft)] text-sm">
+              {scaledIngredients.map((ing, idx) => (
+                <div
+                  key={`${ing.name}-${idx}`}
+                  className="flex items-center justify-between py-2"
+                >
+                  <div className="flex flex-col">
+                    <span>{ing.name}</span>
+                    {ing.note && (
+                      <span className="text-[11px] text-[var(--text-secondary)]">
+                        {ing.note}
+                      </span>
                     )}
                   </div>
-                  <button
-                    onClick={handleScaleToPlan}
-                    className="cosmic-button px-3 py-2 text-xs"
-                  >
-                    Подогнать
-                  </button>
+                  <span className="text-[var(--text-primary)] font-medium">
+                    {ing.scaledAmount} {ing.unit ?? ""}
+                  </span>
                 </div>
+              ))}
+            </div>
+          </section>
 
-                <div className="grid grid-cols-2 gap-3 text-xs mt-1">
-                  <div className="bg-black/30 rounded-lg p-3">
-                    <div className="text-gray-400 mb-1">Размер порции</div>
-                    <div className="text-lg font-bold">
-                      {portionScalePercent}%
-                    </div>
-                    <div className="text-[11px] text-gray-500">
-                      {portionScalePercent === 100
-                        ? "Базовая порция"
-                        : portionScalePercent > 100
-                        ? "Порция больше базовой"
-                        : "Порция меньше базовой"}
-                    </div>
-                  </div>
-                  <div className="bg-black/30 rounded-lg p-3">
-                    <div className="text-gray-400 mb-1">Калории / порция</div>
-                    <div className="text-lg font-bold text-emerald-300">
-                      {Math.round(scaledCalories)} ккал
-                    </div>
-                    <div className="text-[11px] text-gray-500">
-                      Б {Math.round(scaledProtein)}г • Ж{" "}
-                      {Math.round(scaledFat)}г • У {Math.round(scaledCarbs)}г
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Добавить в дневник */}
-              <div className="mt-3 pt-3 border-t border-gray-700/60 flex flex-col gap-3">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-xs">
-                    <PlusCircle className="w-4 h-4 text-teal-300" />
-                    <span>Добавить в дневник на сегодня</span>
-                  </div>
-                  <select
-                    value={diaryMealType}
-                    onChange={(e) =>
-                      setDiaryMealType(e.target.value as MealType)
-                    }
-                    className="bg-black/40 border border-gray-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-teal-400"
-                  >
-                    <option value="breakfast">Завтрак</option>
-                    <option value="lunch">Обед</option>
-                    <option value="dinner">Ужин</option>
-                    <option value="snack">Перекус</option>
-                    <option value="dessert">Десерт</option>
-                  </select>
-                </div>
-                <button
-                  onClick={handleAddToDiary}
-                  className="cosmic-button w-full flex items-center justify-center gap-2 text-sm"
-                >
-                  <PlusCircle className="w-4 h-4" />
-                  Добавить в дневник
-                </button>
-              </div>
-            </motion.section>
-
-            {/* Ингредиенты */}
-            <motion.section
-              className="glass-card p-4 space-y-3"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-            >
-              <h2 className="text-sm font-semibold mb-1">Ингредиенты</h2>
-              <p className="text-[11px] text-gray-500 mb-1">
-                Количество пересчитано под выбранный размер порции (
-                {portionScalePercent}% от базовой).
-              </p>
-              <div className="space-y-2 text-sm">
-                {scaledIngredients.map((ing: MealIngredient, idx: number) => {
-                  const base = INGREDIENTS[ing.ingredientId];
-                  return (
-                    <div
-                      key={idx}
-                      className="flex justify-between items-center bg-black/25 rounded-lg px-3 py-2"
-                    >
-                      <div className="flex flex-col">
-                        <span className="text-gray-100">
-                          {base?.name ?? ing.ingredientId}
-                        </span>
-                        {ing.note && (
-                          <span className="text-[11px] text-gray-500">
-                            {ing.note}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-right text-xs text-gray-300">
-                        {ing.amount} {ing.unit || base?.defaultUnit || ""}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </motion.section>
-
-            {/* Шаги */}
-            {recipe.steps && recipe.steps.length > 0 && (
-              <motion.section
-                className="glass-card p-4 space-y-3"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.15 }}
-              >
-                <h2 className="text-sm font-semibold mb-1">Как готовить</h2>
-                <ol className="space-y-2 text-sm text-gray-200 list-decimal list-inside">
-                  {recipe.steps.map((step: string, idx: number) => (
-                    <li key={idx}>{step}</li>
-                  ))}
-                </ol>
-              </motion.section>
-            )}
-          </>
-        )}
+          {/* Шаги */}
+          {meal.steps && meal.steps.length > 0 && (
+            <section className="glass-card px-4 py-4 space-y-3 mb-6">
+              <h2 className="text-sm font-semibold">
+                Подробный рецепт приготовления
+              </h2>
+              <ol className="space-y-2 text-sm list-decimal list-inside text-[var(--text-primary)]">
+                {meal.steps.map((step, idx) => (
+                  <li key={idx}>{step}</li>
+                ))}
+              </ol>
+            </section>
+          )}
+        </div>
       </div>
-    </div>
+
+      <AddToDiaryModal
+        isOpen={showAddModal}
+        defaultDate={todayISO}
+        onClose={() => setShowAddModal(false)}
+        onConfirm={handleAddToDiary}
+      />
+    </>
   );
 }

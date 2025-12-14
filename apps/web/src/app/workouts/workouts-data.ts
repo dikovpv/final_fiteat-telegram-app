@@ -2,7 +2,6 @@
 
 export type WorkoutLevel = "beginner" | "intermediate" | "advanced";
 
-// Группа мышц для фильтрации упражнений
 export type MuscleGroup =
   | "chest"
   | "back"
@@ -16,7 +15,6 @@ export type MuscleGroup =
   | "cardio"
   | "other";
 
-// ВАЖНО: теперь это экспортируется и доступно в любых файлах
 export const MUSCLE_GROUP_LABELS: Record<MuscleGroup, string> = {
   chest: "Грудь",
   back: "Спина",
@@ -33,38 +31,73 @@ export const MUSCLE_GROUP_LABELS: Record<MuscleGroup, string> = {
 
 export interface WorkoutExerciseTemplate {
   id: string;
-  slug: string; // slug для отдельной страницы упражнения
+  slug: string;
   name: string;
   sets: number;
-  reps: number; // целевое количество повторений (или секунд для планки и т.п.)
+  reps: number;
   type: "strength" | "cardio" | "flexibility";
   note?: string;
-
-  // Новое: основная группа мышц (для фильтра "Грудь / Ноги / Плечи...")
   muscleGroup?: MuscleGroup;
+
+  // описание для справочника упражнений
+  description?: string;
+  techniqueSteps?: string[];
+  keyCues?: string[];
+  commonMistakes?: string[];
+  safetyNotes?: string[];
+
+  // платное упражнение
+  proOnly?: boolean;
 }
 
 export interface WorkoutTemplate {
   slug: string;
   title: string;
-  dayTag?: string; // «День 1», «День 2» и т.п.
+  dayTag?: string;
   level: WorkoutLevel;
-  focus: string; // «Грудь / плечи / трицепс»
+  focus: string;
   duration: number; // мин
   description: string;
   exercises: WorkoutExerciseTemplate[];
+
+  // категория программы
+  category: "general" | "bodypart";
+
+  // платная программа
+  proOnly?: boolean;
 }
 
-// ——— ДЕНЬ 1 — ГРУДЬ / ПЛЕЧИ / ТРИЦЕПС ———
+/** Многодневная программа (например, сплит «тяни-толкай-ноги») */
+export interface MultiDayProgram {
+  slug: string; // используется в URL /workouts/programs/[slug]
+  title: string;
+  subtitle?: string;
+  level: WorkoutLevel;
+  focus: string;
+  duration: number; // среднее время тренировки
+  description: string;
+  proOnly?: boolean;
+  days: {
+    slug: string; // slug обычной тренировки из WORKOUT_TEMPLATES
+    tag: string; // "ДЕНЬ PUSH"
+    title: string; // заголовок дня
+    duration: number;
+  }[];
+}
+
+/* ---------- ДЕНЬ 1 — ВЕРХ: ГРУДЬ / ПЛЕЧИ / ТРИЦЕПС (PUSH) ---------- */
+
 const day1: WorkoutTemplate = {
   slug: "day1-grud-plechi-triceps",
-  title: "День 1 — Грудь / плечи / трицепс",
-  dayTag: "День 1",
+  title: "Сплит верх — грудь / плечи / трицепс",
+  dayTag: "День PUSH",
   level: "intermediate",
-  focus: "Верх тела: грудь, плечи, трицепс",
+  focus: "Верх тела: грудь, плечи, трицепс (тяни-толкай сплит)",
   duration: 60,
+  category: "general",
+  proOnly: true,
   description:
-    "Классический тренировочный день на верх тела. Подходит для набора мышц и сохранения силы во время похудения.",
+    "Классический день PUSH: жимы и махи на грудь и плечи + изоляция трицепса. Можно использовать в сплите «тяни-толкай-ноги».",
   exercises: [
     {
       id: "bench-press",
@@ -73,8 +106,30 @@ const day1: WorkoutTemplate = {
       sets: 4,
       reps: 8,
       type: "strength",
-      note: "Рабочий вес, 1–2 подхода разминочные",
+      note: "1–2 разминочных подхода, потом рабочие",
       muscleGroup: "chest",
+      proOnly: true,
+      description:
+        "Базовое упражнение на грудные мышцы с подключением передних дельт и трицепса. Даёт рост силы и объёма верхней части тела.",
+      techniqueSteps: [
+        "Ляг на скамью, глаза примерно под грифом. Стопы плотно на полу.",
+        "Сведи лопатки, слегка прогни поясницу, грудь направь вверх. Хват чуть шире плеч.",
+        "Сними штангу, перенеси её над грудью.",
+        "На вдохе опускай штангу к нижней части груди, контролируя движение.",
+        "Коснувшись груди без отскока, на выдохе выжми штангу вверх.",
+      ],
+      keyCues: [
+        "Лопатки всегда сведены и прижаты к скамье.",
+        "Гриф идёт к нижней части груди, а не к шее.",
+      ],
+      commonMistakes: [
+        "Локти под 90° — сильно грузит плечи.",
+        "Отскок штанги от груди.",
+      ],
+      safetyNotes: [
+        "Большой вес — только со страховкой.",
+        "При дискомфорте в плечах сузь хват и сократи амплитуду.",
+      ],
     },
     {
       id: "incline-db-press",
@@ -84,6 +139,15 @@ const day1: WorkoutTemplate = {
       reps: 10,
       type: "strength",
       muscleGroup: "chest",
+      proOnly: true,
+      description:
+        "Жим под углом для верхней части груди и передних дельт. Часто комфортнее для плеч, чем штанга.",
+      techniqueSteps: [
+        "Наклон спинки ~30–45°.",
+        "Гантели над грудью, ладони вперёд или чуть навстречу.",
+        "На вдохе опускай гантели по дуге к бокам груди.",
+        "На выдохе выжимай вверх, не сталкивая гантели.",
+      ],
     },
     {
       id: "side-raises",
@@ -93,6 +157,7 @@ const day1: WorkoutTemplate = {
       reps: 12,
       type: "strength",
       muscleGroup: "shoulders",
+      proOnly: true,
     },
     {
       id: "overhead-press",
@@ -102,6 +167,7 @@ const day1: WorkoutTemplate = {
       reps: 8,
       type: "strength",
       muscleGroup: "shoulders",
+      proOnly: true,
     },
     {
       id: "cable-pushdown",
@@ -111,20 +177,24 @@ const day1: WorkoutTemplate = {
       reps: 12,
       type: "strength",
       muscleGroup: "triceps",
+      proOnly: true,
     },
   ],
 };
 
-// ——— ДЕНЬ 2 — СПИНА / БИЦЕПС ———
+/* ---------- ДЕНЬ 2 — ТЯГА: СПИНА / БИЦЕПС (PULL) ---------- */
+
 const day2: WorkoutTemplate = {
   slug: "day2-spina-biceps",
-  title: "День 2 — Спина / бицепс",
-  dayTag: "День 2",
+  title: "Сплит тяга — спина / бицепс",
+  dayTag: "День PULL",
   level: "intermediate",
-  focus: "Спина + бицепс для ширины и толщины",
+  focus: "Тяговые движения: ширина и толщина спины + бицепс",
   duration: 60,
+  category: "general",
+  proOnly: true,
   description:
-    "Тяговые упражнения для спины и сгибания для бицепса. Можно использовать как вторую тренировку в сплите.",
+    "Тяги и сгибания. Классический день PULL в сплите «тяни-толкай-ноги». Можно ставить вторым днём недели.",
   exercises: [
     {
       id: "lat-pulldown",
@@ -134,15 +204,17 @@ const day2: WorkoutTemplate = {
       reps: 10,
       type: "strength",
       muscleGroup: "back",
+      proOnly: true,
     },
     {
       id: "row",
       slug: "barbell-or-one-arm-row",
-      name: "Тяга штанги в наклоне / Тяга гантели одной рукой",
+      name: "Тяга штанги в наклоне / гантели одной рукой",
       sets: 4,
       reps: 8,
       type: "strength",
       muscleGroup: "back",
+      proOnly: true,
     },
     {
       id: "seated-row",
@@ -152,6 +224,7 @@ const day2: WorkoutTemplate = {
       reps: 10,
       type: "strength",
       muscleGroup: "back",
+      proOnly: true,
     },
     {
       id: "barbell-curl",
@@ -161,6 +234,7 @@ const day2: WorkoutTemplate = {
       reps: 10,
       type: "strength",
       muscleGroup: "biceps",
+      proOnly: true,
     },
     {
       id: "incline-curl",
@@ -170,29 +244,34 @@ const day2: WorkoutTemplate = {
       reps: 12,
       type: "strength",
       muscleGroup: "biceps",
+      proOnly: true,
     },
   ],
 };
 
-// ——— ДЕНЬ 3 — НОГИ / ЯГОДИЦЫ ———
+/* ---------- ДЕНЬ 3 — НИЗ: НОГИ / ЯГОДИЦЫ (LEGS) ---------- */
+
 const day3: WorkoutTemplate = {
   slug: "day3-nogi-yagodicy",
-  title: "День 3 — Ноги / ягодицы",
-  dayTag: "День 3",
+  title: "Сплит низ — ноги / ягодицы",
+  dayTag: "День LEGS",
   level: "intermediate",
   focus: "Бёдра, ягодицы, икры",
   duration: 65,
+  category: "general",
+  proOnly: true,
   description:
-    "Сильные ноги и ягодицы поддерживают осанку и общую силовую выносливость. Хорошо сочетается с ходьбой/кардио.",
+    "Сильные ноги и ягодицы поддерживают осанку, спину и общую силовую выносливость. Хорошо сочетается с шагами/кардио.",
   exercises: [
     {
       id: "squat",
       slug: "barbell-squat",
-      name: "Приседания со штангой / в Смитте",
+      name: "Приседания со штангой / в Смите",
       sets: 4,
       reps: 8,
       type: "strength",
       muscleGroup: "legs",
+      proOnly: true,
     },
     {
       id: "leg-press",
@@ -202,6 +281,7 @@ const day3: WorkoutTemplate = {
       reps: 10,
       type: "strength",
       muscleGroup: "legs",
+      proOnly: true,
     },
     {
       id: "romanian-deadlift",
@@ -211,6 +291,7 @@ const day3: WorkoutTemplate = {
       reps: 10,
       type: "strength",
       muscleGroup: "glutes",
+      proOnly: true,
     },
     {
       id: "lunges",
@@ -220,6 +301,7 @@ const day3: WorkoutTemplate = {
       reps: 12,
       type: "strength",
       muscleGroup: "glutes",
+      proOnly: true,
     },
     {
       id: "calf-raises",
@@ -229,19 +311,23 @@ const day3: WorkoutTemplate = {
       reps: 15,
       type: "strength",
       muscleGroup: "legs",
+      proOnly: true,
     },
   ],
 };
 
-// ——— Full body ———
+/* ---------- FULL BODY 3x WEEK (БЕСПЛАТНАЯ) ---------- */
+
 const fullBody: WorkoutTemplate = {
   slug: "fullbody-3x-week",
-  title: "Full body — 3 раза в неделю",
+  title: "Фуллбади — 3 раза в неделю",
   level: "beginner",
   focus: "Полное тело, базовые упражнения",
-  duration: 50,
+  duration: 45,
+  category: "general",
+  proOnly: false,
   description:
-    "Универсальная тренировка для всего тела. Подходит для старта или лёгкого режима при дефиците калорий.",
+    "Универсальная тренировка для всего тела. Делай её 3 раза в неделю (например, Пн/Ср/Пт), увеличивая веса по самочувствию.",
   exercises: [
     {
       id: "fb-squat",
@@ -284,7 +370,7 @@ const fullBody: WorkoutTemplate = {
       slug: "fb-plank",
       name: "Планка",
       sets: 3,
-      reps: 30, // секунды, просто как число
+      reps: 30,
       type: "flexibility",
       note: "Задержка 30 секунд",
       muscleGroup: "core",
@@ -292,15 +378,18 @@ const fullBody: WorkoutTemplate = {
   ],
 };
 
-// ——— Домашняя тренировка без оборудования ———
+/* ---------- ДОМАШНЯЯ ТРЕНИРОВКА БЕЗ ЖЕЛЕЗА (PRO) ---------- */
+
 const home: WorkoutTemplate = {
   slug: "home-no-equipment",
-  title: "Домашняя тренировка без оборудования",
+  title: "Домашняя тренировка без железа",
   level: "beginner",
-  focus: "Всё тело, можно делать дома",
+  focus: "Всё тело дома, без оборудования",
   duration: 35,
+  category: "general",
+  proOnly: true,
   description:
-    "Подходит для дней, когда нет возможности попасть в зал. Работает всё тело за счёт собственного веса.",
+    "Когда нет зала — делаешь эту тренировку дома. Только собственный вес, можно выполнять в комнате.",
   exercises: [
     {
       id: "home-squat",
@@ -350,22 +439,275 @@ const home: WorkoutTemplate = {
   ],
 };
 
+/* ---------- ДЕНЬ НА РУКИ (БИЦЕПС / ТРИЦЕПС) ---------- */
+
+const armsFocus: WorkoutTemplate = {
+  slug: "arms-biceps-triceps",
+  title: "Фокус на руки — бицепс и трицепс",
+  dayTag: "Руки",
+  level: "intermediate",
+  focus: "Объём рук: бицепс + трицепс",
+  duration: 45,
+  category: "bodypart",
+  proOnly: true,
+  description:
+    "Отдельный день для рук. Можно добавить четвёртым днём к фуллбади или к сплиту.",
+  exercises: [
+    {
+      id: "arms-barbell-curl",
+      slug: "arms-barbell-biceps-curl",
+      name: "Сгибания штанги стоя",
+      sets: 4,
+      reps: 8,
+      type: "strength",
+      muscleGroup: "biceps",
+      proOnly: true,
+    },
+    {
+      id: "arms-incline-curl",
+      slug: "arms-incline-dumbbell-curl",
+      name: "Сгибания гантелей на наклонной скамье",
+      sets: 3,
+      reps: 10,
+      type: "strength",
+      muscleGroup: "biceps",
+      proOnly: true,
+    },
+    {
+      id: "arms-hammer-curl",
+      slug: "arms-hammer-curl",
+      name: "Подъёмы гантелей молотком",
+      sets: 3,
+      reps: 12,
+      type: "strength",
+      muscleGroup: "biceps",
+      proOnly: true,
+    },
+    {
+      id: "arms-cable-pushdown",
+      slug: "arms-triceps-cable-pushdown",
+      name: "Разгибания на блоке (трицепс)",
+      sets: 3,
+      reps: 12,
+      type: "strength",
+      muscleGroup: "triceps",
+      proOnly: true,
+    },
+    {
+      id: "arms-overhead-extension",
+      slug: "arms-overhead-dumbbell-extension",
+      name: "Разгибания гантели из-за головы сидя",
+      sets: 3,
+      reps: 10,
+      type: "strength",
+      muscleGroup: "triceps",
+      proOnly: true,
+    },
+  ],
+};
+
+/* ---------- ДЕНЬ НА СПИНУ ---------- */
+
+const backFocus: WorkoutTemplate = {
+  slug: "back-thickness-width",
+  title: "Фокус на спину — ширина и толщина",
+  dayTag: "Спина",
+  level: "intermediate",
+  focus: "Широчайшие, середина спины, задние дельты",
+  duration: 55,
+  category: "bodypart",
+  proOnly: true,
+  description:
+    "День фокуса на спине: много тяг под разными углами для ширины и плотности.",
+  exercises: [
+    {
+      id: "bf-lat-pulldown",
+      slug: "bf-lat-pulldown",
+      name: "Тяга верхнего блока к груди (широкий хват)",
+      sets: 4,
+      reps: 10,
+      type: "strength",
+      muscleGroup: "back",
+      proOnly: true,
+    },
+    {
+      id: "bf-closegrip-pulldown",
+      slug: "bf-closegrip-pulldown",
+      name: "Тяга верхнего блока узким хватом",
+      sets: 3,
+      reps: 10,
+      type: "strength",
+      muscleGroup: "back",
+      proOnly: true,
+    },
+    {
+      id: "bf-row",
+      slug: "bf-barbell-row",
+      name: "Тяга штанги в наклоне",
+      sets: 4,
+      reps: 8,
+      type: "strength",
+      muscleGroup: "back",
+      proOnly: true,
+    },
+    {
+      id: "bf-seated-row",
+      slug: "bf-seated-row",
+      name: "Тяга горизонтального блока",
+      sets: 3,
+      reps: 12,
+      type: "strength",
+      muscleGroup: "back",
+      proOnly: true,
+    },
+    {
+      id: "bf-rear-delt-fly",
+      slug: "bf-rear-delt-fly",
+      name: "Разведения гантелей в наклоне",
+      sets: 3,
+      reps: 15,
+      type: "strength",
+      muscleGroup: "back",
+      proOnly: true,
+    },
+  ],
+};
+
+/* ---------- ПРОГРАММА: ДРОПСЕТЫ В ЗАЛЕ (ВЕРХ ТЕЛА) ---------- */
+
+const dropsetUpperBody: WorkoutTemplate = {
+  slug: "dropset-upper-body-gym",
+  title: "Дропсеты в зале — верх тела",
+  level: "intermediate",
+  focus: "Грудь, плечи и руки с акцентом на дропсеты",
+  duration: 55,
+  category: "general",
+  proOnly: true,
+  description:
+    "Программа для зала, где в ключевых упражнениях используется дропсет: снимаешь вес и продолжаешь подход без отдыха. Отлично подходит для плато по силе и объёму.",
+  exercises: [
+    {
+      id: "ds-bench-press",
+      slug: "ds-bench-press",
+      name: "Жим штанги лёжа (дропсет)",
+      sets: 4,
+      reps: 8,
+      type: "strength",
+      muscleGroup: "chest",
+      proOnly: true,
+      note: "Последний (4-й) подход — дропсет: выполняешь 8 повторений, снимаешь ~30% веса и сразу делаешь ещё 6–8 повторений."
+    },
+    {
+      id: "ds-incline-db-press",
+      slug: "ds-incline-db-press",
+      name: "Жим гантелей на наклонной скамье (дропсет)",
+      sets: 3,
+      reps: 10,
+      type: "strength",
+      muscleGroup: "chest",
+      proOnly: true,
+      note: "В каждом подходе: 10 повторений, затем уменьшаешь вес гантелей и делаешь ещё 6–8 повторений без отдыха."
+    },
+    {
+      id: "ds-lateral-raises",
+      slug: "ds-lateral-raises",
+      name: "Махи гантелями в стороны (дропсет)",
+      sets: 3,
+      reps: 12,
+      type: "strength",
+      muscleGroup: "shoulders",
+      proOnly: true,
+      note: "12 повторений с рабочим весом, затем сразу берёшь более лёгкий вес и делаешь ещё 10–12 повторений."
+    },
+    {
+      id: "ds-barbell-curl",
+      slug: "ds-barbell-curl",
+      name: "Сгибания штанги стоя (дропсет)",
+      sets: 3,
+      reps: 10,
+      type: "strength",
+      muscleGroup: "biceps",
+      proOnly: true,
+      note: "Последний подход: 10 повторений, снимаешь вес и добиваешь ещё 8–10 повторений."
+    },
+    {
+      id: "ds-cable-pushdown",
+      slug: "ds-cable-pushdown",
+      name: "Разгибания на блоке (трицепс, дропсет)",
+      sets: 3,
+      reps: 12,
+      type: "strength",
+      muscleGroup: "triceps",
+      proOnly: true,
+      note: "Все подходы в формате дропсета: 12 повторений + уменьшение веса + ещё 8–10 повторений."
+    },
+  ],
+};
+
 export const WORKOUT_TEMPLATES: WorkoutTemplate[] = [
   day1,
   day2,
   day3,
   fullBody,
   home,
+  armsFocus,
+  backFocus,
+  dropsetUpperBody,
 ];
+
+
+
+/* ---------- МНОГОДНЕВНЫЕ ПРОГРАММЫ (СПЛИТЫ) ---------- */
+
+export const MULTI_DAY_PROGRAMS: MultiDayProgram[] = [
+  {
+    slug: "split-push-pull-legs",
+    title: "Сплит «тяни-толкай-ноги» (3 дня)",
+    subtitle: "Классический сплит в зале 3 раза в неделю",
+    level: "intermediate",
+    focus:
+      "PUSH (грудь/плечи/трицепс), PULL (спина/бицепс) и LEGS (ноги/ягодицы).",
+    duration: 60,
+    proOnly: true,
+    description:
+      "Подходит, когда тренируешься в зале 3 раза в неделю. Выбираешь день PUSH, PULL или LEGS и выполняешь их по очереди в течение недели.",
+    days: [
+      {
+        slug: day1.slug,
+        tag: "ДЕНЬ PUSH",
+        title: day1.title,
+        duration: day1.duration,
+      },
+      {
+        slug: day2.slug,
+        tag: "ДЕНЬ PULL",
+        title: day2.title,
+        duration: day2.duration,
+      },
+      {
+        slug: day3.slug,
+        tag: "ДЕНЬ LEGS",
+        title: day3.title,
+        duration: day3.duration,
+      },
+    ],
+  },
+];
+
+// удобные типы/хелперы
+
+export type MultiDayProgramSlug =
+  (typeof MULTI_DAY_PROGRAMS)[number]["slug"];
 
 export function findWorkoutBySlug(slug: string): WorkoutTemplate | undefined {
   return WORKOUT_TEMPLATES.find((w) => w.slug === slug);
 }
 
-// поиск конкретного упражнения по slug (с инфой о плане)
 export function findExerciseBySlug(slug: string) {
   for (const plan of WORKOUT_TEMPLATES) {
-    const ex = (plan.exercises as any[]).find((e) => e.slug === slug);
+    const ex = (plan.exercises as WorkoutExerciseTemplate[]).find(
+      (e) => e.slug === slug,
+    );
     if (ex) {
       return {
         ...ex,
@@ -375,4 +717,10 @@ export function findExerciseBySlug(slug: string) {
     }
   }
   return undefined;
+}
+
+export function findProgramBySlug(
+  slug: string,
+): MultiDayProgram | undefined {
+  return MULTI_DAY_PROGRAMS.find((p) => p.slug === slug);
 }
