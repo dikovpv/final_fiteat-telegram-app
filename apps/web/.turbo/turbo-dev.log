@@ -85,3 +85,19 @@
  GET /diary [32m200[39m in 173ms
  GET /manifest.json [32m200[39m in 16ms
  GET /icon-192x192.png [33m404[39m in 60ms
+ [32m[1m✓[22m[39m Compiled in 2.8s (1557 modules)
+ GET /diary [32m200[39m in 260ms
+ [37m[1m○[22m[39m Compiling /_not-found ...
+ [32m[1m✓[22m[39m Compiled /manifest.json in 1358ms (1546 modules)
+ [32m[1m✓[22m[39m Compiled (1587 modules)
+ GET /manifest.json [32m200[39m in 1156ms
+ GET /luxury-test [33m404[39m in 1866ms
+ GET /icon-192x192.png [33m404[39m in 270ms
+ GET /luxury-test [33m404[39m in 264ms
+ GET /manifest.json [32m200[39m in 23ms
+ GET /manifest.json [32m200[39m in 18ms
+ GET /manifest.json [32m200[39m in 17ms
+ GET /icon-192x192.png [33m404[39m in 65ms
+ GET /diary [32m200[39m in 170ms
+ GET /manifest.json [32m200[39m in 16ms
+ GET /icon-192x192.png [33m404[39m in 67ms
