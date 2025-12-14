@@ -13,7 +13,11 @@ import {
   AlertCircle
 } from 'lucide-react';
 
-declare global { interface Window { Telegram?: any } }
+const tg = typeof window !== "undefined" ? (window as any).Telegram?.WebApp : undefined;
+const telegramId =
+  tg?.initDataUnsafe?.user?.id?.toString() ??
+  tg?.initDataUnsafe?.user?.id ??
+  "";
 
 interface FormData {
   gender: 'male' | 'female';

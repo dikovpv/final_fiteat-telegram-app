@@ -45,3 +45,10 @@ export interface MealSplitStyle {
   title: string;
   percents: MealSplitPercents;
 }
+
+export type NutritionFacts = {
+  calories: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+};

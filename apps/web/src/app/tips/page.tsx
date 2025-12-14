@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { BookOpenText, Lock, Sparkles } from "lucide-react";
+import { Lock, Sparkles } from "lucide-react";
 
 import PageHeader from "@/app/components/PageHeader";
 import {
@@ -30,8 +30,7 @@ export default function TipsPage() {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    const current = getUserPlan();
-    setPlan(current);
+    setPlan(getUserPlan());
   }, []);
 
   const isPro = plan === "pro";
@@ -39,15 +38,11 @@ export default function TipsPage() {
 
   const filteredTips = useMemo(() => {
     return TIPS.filter((t: TipItem) => {
-      if (activeCategory !== "all" && t.category !== activeCategory) {
-        return false;
-      }
+      if (activeCategory !== "all" && t.category !== activeCategory) return false;
 
       if (!search.trim()) return true;
       const q = search.trim().toLowerCase();
-      const haystack = `${t.title} ${t.subtitle ?? ""} ${
-        CATEGORY_LABELS[t.category]
-      }`.toLowerCase();
+      const haystack = `${t.title} ${t.subtitle ?? ""} ${CATEGORY_LABELS[t.category]}`.toLowerCase();
       return haystack.includes(q);
     });
   }, [activeCategory, search]);
@@ -57,7 +52,6 @@ export default function TipsPage() {
       <div className="cosmic-bg" />
 
       <div className="relative z-10 min-h-screen bg-[var(--background)] text-[var(--text-primary)] pb-24 flex flex-col">
-        {/* Золотая шапка */}
         <PageHeader
           title="Советы"
           backHref="/"
@@ -72,21 +66,17 @@ export default function TipsPage() {
         />
 
         <main className="px-3 sm:px-4 md:px-5 pt-3 flex flex-col gap-3">
-          {/* Карточка с описанием + поиск + фильтры */}
           <motion.section
             className="glass-card p-3 space-y-3"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
           >
             <div className="flex items-center gap-3">
-              
-                <p className="text-[11px] text-[var(--text-secondary)]">
-                  Питание, тренировки, здоровье и голова — без воды и магии.
-                </p>
+              <p className="text-[11px] text-[var(--text-secondary)]">
+                Питание, тренировки, здоровье и голова — без воды и магии.
+              </p>
             </div>
-            
 
-            {/* поиск */}
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -97,7 +87,6 @@ export default function TipsPage() {
               />
             </div>
 
-            {/* категории */}
             <div className="mt-1 flex gap-2 overflow-x-auto no-scrollbar">
               {CATEGORIES.map((cat) => {
                 const isActive = activeCategory === cat.id;
@@ -118,7 +107,6 @@ export default function TipsPage() {
             </div>
           </motion.section>
 
-          {/* Список статей */}
           <section className="space-y-3 pb-10">
             {filteredTips.map((tip: TipItem) => {
               const locked = !!tip.proOnly && !isPro;
@@ -129,13 +117,9 @@ export default function TipsPage() {
                   <article className="glass-card p-4 border border-[var(--border-soft)] relative overflow-hidden hover:border-[var(--accent)]/70 transition-all">
                     <div className="flex items-start justify-between gap-2 mb-1">
                       <div>
-                        <h2 className="text-sm font-semibold mb-1">
-                          {tip.title}
-                        </h2>
+                        <h2 className="text-sm font-semibold mb-1">{tip.title}</h2>
                         {tip.subtitle && (
-                          <p className="text-xs text-[var(--text-secondary)]">
-                            {tip.subtitle}
-                          </p>
+                          <p className="text-xs text-[var(--text-secondary)]">{tip.subtitle}</p>
                         )}
                       </div>
 
@@ -150,9 +134,7 @@ export default function TipsPage() {
                     </div>
 
                     {tip.badge && (
-                      <div className="mt-2 text-[10px] text-[var(--text-muted)]">
-                        {tip.badge}
-                      </div>
+                      <div className="mt-2 text-[10px] text-[var(--text-muted)]">{tip.badge}</div>
                     )}
 
                     {tip.proOnly && (
@@ -166,8 +148,7 @@ export default function TipsPage() {
                       <div className="absolute inset-0 bg-black/55 backdrop-blur-[2px] rounded-2xl flex flex-col items-center justify-center gap-2">
                         <Lock className="w-5 h-5 text-purple-200" />
                         <p className="text-[11px] text-gray-100 px-4 text-center">
-                          Это PRO-материал. Оформи PRO-тариф, чтобы открыть
-                          полный текст.
+                          Это PRO-материал. Оформи PRO-тариф, чтобы открыть полный текст.
                         </p>
                       </div>
                     )}
@@ -178,8 +159,7 @@ export default function TipsPage() {
 
             {filteredTips.length === 0 && (
               <div className="glass-card p-4 text-center text-sm text-[var(--text-secondary)] mt-6">
-                Ничего не нашлось под этот фильтр. Попробуй другую категорию или
-                запрос.
+                Ничего не нашлось под этот фильтр. Попробуй другую категорию или запрос.
               </div>
             )}
           </section>

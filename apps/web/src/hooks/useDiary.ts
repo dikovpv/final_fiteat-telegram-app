@@ -1,11 +1,19 @@
 // apps/web/src/hooks/useDiary.ts
 
 import { useEffect, useState, useCallback } from 'react';
-import type { NutritionFacts, MealCategory } from '@/app/meals/meal-types';
+import type { MealType } from '@/app/meals/meal-data';
+
+type NutritionFacts = {
+  calories: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+};
+
 
 const STORAGE_KEY = 'fiteat_diary_v1';
 
-export type DiaryMealType = MealCategory;
+export type DiaryMealType = MealType;
 
 export interface DiaryMealEntry {
   id: string;

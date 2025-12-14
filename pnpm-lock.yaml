@@ -11,6 +11,9 @@ importers:
       '@fit-eat/db':
         specifier: workspace:*
         version: link:packages/db
+      '@prisma/client':
+        specifier: 5.22.0
+        version: 5.22.0(prisma@5.22.0)
       '@tanstack/react-query':
         specifier: ^5.56.2
         version: 5.90.2(react@19.2.0)
@@ -64,6 +67,9 @@ importers:
       '@fit-eat/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@prisma/client':
+        specifier: 5.22.0
+        version: 5.22.0(prisma@5.22.0)
       '@tanstack/react-query':
         specifier: ^5.56.2
         version: 5.90.2(react@19.2.0)
