@@ -9,9 +9,9 @@
     "@tanstack/react-query": "^5.56.2",
     "clsx": "^2.1.1",
     "lucide-react": "^0.451.0",
-    "next": "15.0.1",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "next": "15.0.5",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1"
   },
   "prisma": {
     "schema": "packages/db/prisma/schema.prisma"
